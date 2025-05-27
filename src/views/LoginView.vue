@@ -8,35 +8,17 @@
 
       <div class="form-group">
         <label for="email">Email</label>
-        <input
-          type="email"
-          id="email"
-          v-model="email"
-          required
-          placeholder="Enter your email"
-        />
+        <input type="email" id="email" v-model="email" required placeholder="Enter your email" />
       </div>
 
       <div class="form-group">
         <label for="password">Password</label>
-        <input
-          type="password"
-          id="password"
-          v-model="password"
-          required
-          placeholder="Enter your password"
-        />
+        <input type="password" id="password" v-model="password" required placeholder="Enter your password" />
       </div>
 
       <div v-if="show2FA" class="form-group">
         <label for="otp">One-Time Password (OTP)</label>
-        <input
-          type="text"
-          id="otp"
-          v-model="otp"
-          required
-          placeholder="Enter the OTP sent to your email"
-        />
+        <input type="text" id="otp" v-model="otp" required placeholder="Enter the OTP sent to your email" />
       </div>
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
@@ -75,9 +57,13 @@ export default defineComponent({
         const dummyToken = 'dummy-test-token';
         store.commit('setToken', dummyToken);
         store.commit('setUser', { name: 'Test User', role: 'admin' });
-        router.push('/');
+
+        router.push('/patients');
+        console.log('*** login successfull ***')
+
+        console.log('*** redirecting to patients view ***')
       } else {
-         errorMessage.value = 'Invalid dummy credentials';
+        errorMessage.value = 'Invalid dummy credentials';
       }
     };
 
@@ -106,12 +92,15 @@ export default defineComponent({
   font-size: 1.2rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   z-index: 10;
-  display: flex; /* Use flexbox */
-  align-items: center; /* Vertically align items */
+  display: flex;
+  /* Use flexbox */
+  align-items: center;
+  /* Vertically align items */
 }
 
 .login-topbar span {
-  font-size: 2.4rem; /* Increased font size by a factor of 2 */
+  font-size: 2.4rem;
+  /* Increased font size by a factor of 2 */
 }
 
 .login-container {
@@ -121,7 +110,8 @@ export default defineComponent({
   height: 100vh;
   background-color: var(--primary-blue);
   color: var(--white);
-  padding-top: 60px; /* Add padding to prevent content from being hidden behind the topbar */
+  padding-top: 60px;
+  /* Add padding to prevent content from being hidden behind the topbar */
 }
 
 .login-form {
