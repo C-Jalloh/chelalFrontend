@@ -1,5 +1,7 @@
 // src/services/encounterService.ts
 
+import axios from 'axios';
+
 export interface Encounter {
   id: string | number;
   appointment_id: string | number;
@@ -21,111 +23,41 @@ export interface Encounter {
   doctor_name?: string;
 }
 
-// Assuming we have access to some patient and doctor names for dummy data
-// In a real app, these would be fetched or linked more robustly.
-let dummyEncounters: Encounter[] = [
-  {
-    id: 'enc1',
-    appointment_id: 'appt1', // Corresponds to an appointment for John Doe with Dr. Alice Wonderland
-    patient_id: '1',
-    doctor_id: 'doc1',
-    encounter_date: '2025-05-28',
-    chief_complaint: 'Annual check-up',
-    presenting_illness_history: 'Patient feels generally well. No acute issues.',
-    physical_examination: 'Within normal limits.',
-    diagnosis: 'Routine health maintenance',
-    treatment_plan: 'Continue healthy lifestyle. Follow up in 1 year.',
-    notes: 'Advised on diet and exercise.',
-    patient_name: 'John Doe',
-    doctor_name: 'Dr. Alice Wonderland',
-    created_at: '2025-05-28T10:30:00Z',
-    updated_at: '2025-05-28T10:30:00Z',
-  },
-  {
-    id: 'enc2',
-    appointment_id: 'appt3', // Corresponds to an appointment for Fatou Jallow with Dr. Alice Wonderland
-    patient_id: '3',
-    doctor_id: 'doc1',
-    encounter_date: '2025-05-28',
-    chief_complaint: 'Vaccination follow-up',
-    presenting_illness_history: 'Received vaccination as part of previous visit.',
-    physical_examination: 'Injection site looks good, no adverse reactions noted.',
-    diagnosis: 'Post-vaccination check',
-    treatment_plan: 'No further action needed regarding vaccination.',
-    notes: 'Patient tolerated vaccine well.',
-    patient_name: 'Fatou Jallow',
-    doctor_name: 'Dr. Alice Wonderland',
-    created_at: '2025-05-28T11:30:00Z',
-    updated_at: '2025-05-28T11:30:00Z',
-  },
-];
+const API_URL = 'http://localhost:8000/api/encounters/';
 
 export const fetchEncounters = async (token: string, filters?: { patient_id?: string, appointment_id?: string }): Promise<Encounter[]> => {
-  console.log(`Fetching encounters (dummy)... Token: ${token ? 'provided' : 'not provided'}, Filters: ${JSON.stringify(filters)}`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      let results = [...dummyEncounters];
-      if (filters?.patient_id) {
-        results = results.filter(enc => enc.patient_id === filters.patient_id);
-      }
-      if (filters?.appointment_id) {
-        results = results.filter(enc => enc.appointment_id === filters.appointment_id);
-      }
-      resolve(results);
-    }, 500);
+  let url = API_URL;
+  if (filters?.patient_id) url += `?patient_id=${filters.patient_id}`;
+  if (filters?.appointment_id) url += `${filters.patient_id ? '&' : '?'}appointment_id=${filters.appointment_id}`;
+  const response = await axios.get(url, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const getEncounterById = async (encounterId: string | number, _token: string): Promise<Encounter | undefined> => {
-  console.log(`Fetching encounter by ID ${encounterId} (dummy)...`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(dummyEncounters.find(enc => enc.id === encounterId));
-    }, 300);
+export const getEncounterById = async (encounterId: string | number, token: string): Promise<Encounter> => {
+  const response = await axios.get(`${API_URL}${encounterId}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const createEncounter = async (encounterData: Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, _token: string): Promise<Encounter> => {
-  console.log('Creating encounter (dummy)...', encounterData);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      // In a real app, patient_name and doctor_name might be looked up or come from the appointment
-      const newEncounter: Encounter = {
-        id: `enc${Date.now()}`,
-        ...encounterData,
-        patient_name: `Patient ${encounterData.patient_id}`,
-        doctor_name: `Doctor ${encounterData.doctor_id}`,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      dummyEncounters.push(newEncounter);
-      resolve(newEncounter);
-    }, 500);
+export const createEncounter = async (encounterData: Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, token: string): Promise<Encounter> => {
+  const response = await axios.post(API_URL, encounterData, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const updateEncounter = async (encounterId: string | number, encounterData: Partial<Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, _token: string): Promise<Encounter | undefined> => {
-  console.log(`Updating encounter ${encounterId} (dummy)...`, encounterData);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const index = dummyEncounters.findIndex(enc => enc.id === encounterId);
-      if (index !== -1) {
-        const updatedEncounter = { ...dummyEncounters[index], ...encounterData, updated_at: new Date().toISOString() };
-        dummyEncounters[index] = updatedEncounter;
-        resolve(updatedEncounter);
-      } else {
-        resolve(undefined);
-      }
-    }, 500);
+export const updateEncounter = async (encounterId: string | number, encounterData: Partial<Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, token: string): Promise<Encounter> => {
+  const response = await axios.put(`${API_URL}${encounterId}/`, encounterData, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const deleteEncounter = async (encounterId: string | number, _token: string): Promise<void> => {
-  console.log(`Deleting encounter ${encounterId} (dummy)...`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      dummyEncounters = dummyEncounters.filter(enc => enc.id !== encounterId);
-      resolve();
-    }, 500);
+export const deleteEncounter = async (encounterId: string | number, token: string): Promise<void> => {
+  await axios.delete(`${API_URL}${encounterId}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 };

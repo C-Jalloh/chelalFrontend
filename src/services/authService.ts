@@ -1,52 +1,31 @@
-// import axios from 'axios'; // Commented out axios
-// import { jwtDecode } from 'jwt-decode'; // Commented out jwtDecode
+import axios from 'axios';
 
-// const API_URL = 'https://api.example.com/auth'; // Commented out API_URL
+const API_URL = 'http://localhost:8000/api/auth/';
 
-// interface DecodedToken {
-//   exp: number; // Expiry time in seconds since epoch
-// } // Commented out interface
-
-// Commented out handleError function
-// export const handleError = (error: unknown): string => {
-//   if (axios.isAxiosError(error)) {
-//     return error.response?.data?.message || 'An unexpected error occurred';
-//   }
-//   return 'An unexpected error occurred';
-// };
-
-// Dummy login function
 export const login = async (email: string, password: string) => {
-  return new Promise((resolve, reject) => {
-    // Simulate a delay
-    setTimeout(() => {
-      if (email === 'test@example.com' && password === 'password123') {
-        // Simulate successful login with a dummy token and user data
-        const dummyToken = 'dummy-jwt-token';
-        const dummyUser = { name: 'Test User', role: 'admin' };
-        // cacheCredentials(email, password); // Optional: cache dummy credentials
-        resolve({ token: dummyToken, user: dummyUser });
-      } else {
-        reject(new Error('Invalid credentials'));
-      }
-    }, 500); // Simulate network delay
-  });
+  try {
+    const response = await axios.post(API_URL + 'token/', {
+      email,
+      password,
+    });
+    // The backend returns access and refresh tokens
+    const { access, refresh } = response.data;
+    // Optionally fetch user profile here if needed
+    return { token: access, refresh, user: null };
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || 'Login failed');
+  }
 };
 
-// Dummy getProfile function
 export const getProfile = async (token: string) => {
-   return new Promise((resolve, reject) => {
-    // Simulate a delay
-    setTimeout(() => {
-      // Accept the token set by LoginView.vue or the older dummy token
-      if (token === 'dummy-test-token' || token === 'dummy-jwt-token') { 
-        const dummyUser = { name: 'Test User', role: 'admin' };
-        resolve(dummyUser);
-      } else {
-        reject(new Error('Invalid token for getProfile'));
-      }
-    }, 500); // Simulate network delay
-  });
+  try {
+    const response = await axios.get('http://localhost:8000/api/users/me/', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch profile');
+  }
 };
 
 // Dummy isTokenExpired function

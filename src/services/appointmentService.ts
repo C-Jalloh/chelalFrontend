@@ -1,4 +1,6 @@
-// src/services/appointmentService.ts
+import axios from 'axios';
+
+const API_URL = 'http://localhost:8000/api/appointments/';
 
 export interface Appointment {
   id: string | number;
@@ -95,76 +97,37 @@ let dummyAppointments: Appointment[] = [
   },
 ];
 
-export const fetchAppointments = async (_token: string): Promise<Appointment[]> => {
-  console.log('Fetching appointments (dummy)...');
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve([...dummyAppointments]);
-    }, 500);
+export const fetchAppointments = async (token: string): Promise<Appointment[]> => {
+  const response = await axios.get(API_URL, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const getAppointmentById = async (appointmentId: string | number, _token: string): Promise<Appointment | undefined> => {
-  console.log(`Fetching appointment by ID ${appointmentId} (dummy)...`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(dummyAppointments.find(appt => appt.id === appointmentId));
-    }, 300);
+export const getAppointmentById = async (appointmentId: string | number, token: string): Promise<Appointment> => {
+  const response = await axios.get(`${API_URL}${appointmentId}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const createAppointment = async (appointmentData: Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, _token: string): Promise<Appointment> => {
-  console.log('Creating appointment (dummy)...', appointmentData);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const patient = dummyPatientsForAppointments.find(p => p.id === appointmentData.patient_id);
-      const doctor = dummyDoctors.find(d => d.id === appointmentData.doctor_id);
-
-      const newAppointment: Appointment = {
-        id: `appt${Date.now()}`,
-        ...appointmentData,
-        patient_name: patient?.name || 'Unknown Patient',
-        doctor_name: doctor?.name || 'Unknown Doctor',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      dummyAppointments.push(newAppointment);
-      resolve(newAppointment);
-    }, 500);
+export const createAppointment = async (appointmentData: Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, token: string): Promise<Appointment> => {
+  const response = await axios.post(API_URL, appointmentData, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const updateAppointment = async (appointmentId: string | number, appointmentData: Partial<Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, _token: string): Promise<Appointment | undefined> => {
-  console.log(`Updating appointment ${appointmentId} (dummy)...`, appointmentData);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const index = dummyAppointments.findIndex(appt => appt.id === appointmentId);
-      if (index !== -1) {
-        const patient = appointmentData.patient_id ? dummyPatientsForAppointments.find(p => p.id === appointmentData.patient_id) : undefined;
-        const doctor = appointmentData.doctor_id ? dummyDoctors.find(d => d.id === appointmentData.doctor_id) : undefined;
-
-        const updatedAppointment = { ...dummyAppointments[index], ...appointmentData };
-        
-        if (patient) updatedAppointment.patient_name = patient.name;
-        if (doctor) updatedAppointment.doctor_name = doctor.name;
-        updatedAppointment.updated_at = new Date().toISOString();
-        
-        dummyAppointments[index] = updatedAppointment;
-        resolve(updatedAppointment);
-      } else {
-        resolve(undefined); // Or reject with an error
-      }
-    }, 500);
+export const updateAppointment = async (appointmentId: string | number, appointmentData: Partial<Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, token: string): Promise<Appointment> => {
+  const response = await axios.put(`${API_URL}${appointmentId}/`, appointmentData, {
+    headers: { Authorization: `Bearer ${token}` },
   });
+  return response.data;
 };
 
-export const deleteAppointment = async (appointmentId: string | number, _token: string): Promise<void> => {
-  console.log(`Deleting appointment ${appointmentId} (dummy)...`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      dummyAppointments = dummyAppointments.filter(appt => appt.id !== appointmentId);
-      resolve();
-    }, 500);
+export const deleteAppointment = async (appointmentId: string | number, token: string): Promise<void> => {
+  await axios.delete(`${API_URL}${appointmentId}/`, {
+    headers: { Authorization: `Bearer ${token}` },
   });
 };
 
