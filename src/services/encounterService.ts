@@ -1,6 +1,8 @@
 // src/services/encounterService.ts
 
 import axios from 'axios';
+import { callApiWithAuthRetry } from './apiClient';
+import store from '@/store';
 
 export interface Encounter {
   id: string | number;
@@ -25,39 +27,59 @@ export interface Encounter {
 
 const API_URL = 'http://localhost:8000/api/encounters/';
 
-export const fetchEncounters = async (token: string, filters?: { patient_id?: string, appointment_id?: string }): Promise<Encounter[]> => {
-  let url = API_URL;
-  if (filters?.patient_id) url += `?patient_id=${filters.patient_id}`;
-  if (filters?.appointment_id) url += `${filters.patient_id ? '&' : '?'}appointment_id=${filters.appointment_id}`;
-  const response = await axios.get(url, {
-    headers: { Authorization: `Bearer ${token}` },
+export const fetchEncounters = async (filters?: { patient_id?: string, appointment_id?: string }): Promise<Encounter[]> => {
+  return callApiWithAuthRetry(async () => {
+    let url = API_URL;
+    if (filters?.patient_id) url += `?patient_id=${filters.patient_id}`;
+    if (filters?.appointment_id) url += `${filters.patient_id ? '&' : '?'}appointment_id=${filters.appointment_id}`;
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const getEncounterById = async (encounterId: string | number, token: string): Promise<Encounter> => {
-  const response = await axios.get(`${API_URL}${encounterId}/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const getEncounterById = async (encounterId: string | number): Promise<Encounter> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.get(`${API_URL}${encounterId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const createEncounter = async (encounterData: Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, token: string): Promise<Encounter> => {
-  const response = await axios.post(API_URL, encounterData, {
-    headers: { Authorization: `Bearer ${token}` },
+export const createEncounter = async (encounterData: Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>): Promise<Encounter> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.post(API_URL, encounterData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const updateEncounter = async (encounterId: string | number, encounterData: Partial<Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, token: string): Promise<Encounter> => {
-  const response = await axios.put(`${API_URL}${encounterId}/`, encounterData, {
-    headers: { Authorization: `Bearer ${token}` },
+export const updateEncounter = async (encounterId: string | number, encounterData: Partial<Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>): Promise<Encounter> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.put(`${API_URL}${encounterId}/`, encounterData, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const deleteEncounter = async (encounterId: string | number, token: string): Promise<void> => {
-  await axios.delete(`${API_URL}${encounterId}/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const deleteEncounter = async (encounterId: string | number): Promise<void> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    await axios.delete(`${API_URL}${encounterId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   });
 };

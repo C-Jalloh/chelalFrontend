@@ -1,4 +1,7 @@
 // src/services/billingService.ts
+import axios from 'axios';
+import { callApiWithAuthRetry } from './apiClient';
+import store from '@/store';
 
 // Simplified Service Item for dummy data
 interface ServiceItem {
@@ -105,20 +108,17 @@ let dummyBills: Bill[] = [
   },
 ];
 
-export const fetchBills = async (_token: string, filters?: { patient_id?: string }): Promise<Bill[]> => {
-  console.log(`Fetching bills (dummy)... Filters: ${JSON.stringify(filters)}`);
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      let results = [...dummyBills];
-      if (filters?.patient_id) {
-        results = results.filter(bill => bill.patient_id === filters.patient_id);
-      }
-      resolve(results.map(bill => ({ ...bill, balance_due: bill.total_amount - bill.paid_amount })));
-    }, 400);
+const API_URL = 'http://localhost:8000/api/billing/';
+
+export const fetchBills = async () => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    return axios.get(API_URL, { headers: { Authorization: `Bearer ${token}` } });
   });
 };
 
-export const getBillById = async (billId: string | number, _token: string): Promise<Bill | undefined> => {
+export const getBillById = async (billId: string | number): Promise<Bill | undefined> => {
   console.log(`Fetching bill by ID ${billId} (dummy)...`);
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -133,7 +133,7 @@ export const getBillById = async (billId: string | number, _token: string): Prom
 };
 
 // Simplified createBill - in real app, items would be more complex
-export const createBill = async (billData: Omit<Bill, 'id' | 'created_at' | 'updated_at' | 'paid_amount' | 'balance_due' | 'payments' | 'status'> & { items: Omit<BillItem, 'id' | 'bill_id'>[] }, _token: string): Promise<Bill> => {
+export const createBill = async (billData: Omit<Bill, 'id' | 'created_at' | 'updated_at' | 'paid_amount' | 'balance_due' | 'payments' | 'status'> & { items: Omit<BillItem, 'id' | 'bill_id'>[] }): Promise<Bill> => {
   console.log('Creating bill (dummy)...', billData);
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -177,7 +177,7 @@ export const createBill = async (billData: Omit<Bill, 'id' | 'created_at' | 'upd
   });
 };
 
-export const recordPayment = async (paymentData: Omit<Payment, 'id' | 'created_at'>, _token: string): Promise<Payment> => {
+export const recordPayment = async (paymentData: Omit<Payment, 'id' | 'created_at'>): Promise<Payment> => {
   console.log('Recording payment (dummy)...', paymentData);
   return new Promise((resolve, reject) => {
     setTimeout(() => {

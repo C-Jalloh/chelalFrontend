@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { callApiWithAuthRetry } from './apiClient';
+import store from '@/store';
 
 const API_URL = 'http://localhost:8000/api/appointments/';
 
@@ -28,106 +30,57 @@ export interface AppointmentNotificationInfo {
   communication_type?: 'SMS' | 'Email' | 'Both';
 }
 
-// Dummy doctor data (in a real app, this would come from a userService or similar)
-const dummyDoctors = [
-  { id: 'doc1', name: 'Dr. Alice Wonderland' },
-  { id: 'doc2', name: 'Dr. Bob The Builder' },
-  { id: 'doc3', name: 'Dr. Carol Danvers' },
-];
-
-// Dummy patient data (simplified, assuming patientService provides full details)
-const dummyPatientsForAppointments = [
-  { id: '1', name: 'John Doe' },
-  { id: '2', name: 'Jane Smith' },
-  { id: '3', name: 'Fatou Jallow' },
-];
-
-let dummyAppointments: Appointment[] = [
-  {
-    id: 'appt1',
-    patient_id: '1',
-    doctor_id: 'doc1',
-    appointment_date: '2025-05-28',
-    appointment_time: '10:00:00',
-    status: 'Scheduled',
-    patient_name: 'John Doe',
-    doctor_name: 'Dr. Alice Wonderland',
-    notes: 'Routine check-up',
-    created_at: '2025-05-20T10:00:00Z',
-    updated_at: '2025-05-20T10:00:00Z',
-  },
-  {
-    id: 'appt2',
-    patient_id: '2',
-    doctor_id: 'doc2',
-    appointment_date: '2025-05-29',
-    appointment_time: '14:30:00',
-    status: 'Scheduled',
-    patient_name: 'Jane Smith',
-    doctor_name: 'Dr. Bob The Builder',
-    notes: 'Follow-up consultation',
-    created_at: '2025-05-21T11:00:00Z',
-    updated_at: '2025-05-21T11:00:00Z',
-  },
-  {
-    id: 'appt3',
-    patient_id: '3',
-    doctor_id: 'doc1',
-    appointment_date: '2025-05-28',
-    appointment_time: '11:00:00',
-    status: 'Completed',
-    patient_name: 'Fatou Jallow',
-    doctor_name: 'Dr. Alice Wonderland',
-    notes: 'Vaccination appointment. Completed.',
-    created_at: '2025-05-15T14:00:00Z',
-    updated_at: '2025-05-28T11:30:00Z',
-  },
-  {
-    id: 'appt4',
-    patient_id: '1',
-    doctor_id: 'doc3',
-    appointment_date: '2025-06-02',
-    appointment_time: '09:00:00',
-    status: 'Pending',
-    patient_name: 'John Doe',
-    doctor_name: 'Dr. Carol Danvers',
-    notes: 'Awaiting confirmation for specialist visit.',
-    created_at: '2025-05-25T16:00:00Z',
-    updated_at: '2025-05-25T16:00:00Z',
-  },
-];
-
-export const fetchAppointments = async (token: string): Promise<Appointment[]> => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
+export const fetchAppointments = async (): Promise<Appointment[]> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.get(API_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const getAppointmentById = async (appointmentId: string | number, token: string): Promise<Appointment> => {
-  const response = await axios.get(`${API_URL}${appointmentId}/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const getAppointmentById = async (appointmentId: string | number): Promise<Appointment> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.get(`${API_URL}${appointmentId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const createAppointment = async (appointmentData: Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>, token: string): Promise<Appointment> => {
-  const response = await axios.post(API_URL, appointmentData, {
-    headers: { Authorization: `Bearer ${token}` },
+export const createAppointment = async (appointment: Omit<Appointment, 'id'>): Promise<Appointment> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.post(API_URL, appointment, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const updateAppointment = async (appointmentId: string | number, appointmentData: Partial<Omit<Appointment, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'>>, token: string): Promise<Appointment> => {
-  const response = await axios.put(`${API_URL}${appointmentId}/`, appointmentData, {
-    headers: { Authorization: `Bearer ${token}` },
+export const updateAppointment = async (appointment: Appointment): Promise<Appointment> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.put(`${API_URL}${appointment.id}/`, appointment, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const deleteAppointment = async (appointmentId: string | number, token: string): Promise<void> => {
-  await axios.delete(`${API_URL}${appointmentId}/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const deleteAppointment = async (appointmentId: string | number): Promise<void> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    await axios.delete(`${API_URL}${appointmentId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   });
 };
 
@@ -178,13 +131,4 @@ export const fetchAppointmentNotificationInfo = async (appointmentId: string | n
       resolve(dummyInfo);
     }, 400);
   });
-};
-
-// Helper to get doctors for forms (in a real app, this would be a separate service)
-export const getDoctors = async (): Promise<{ id: string; name: string }[]> => {
-    return new Promise((resolve) => {
-        setTimeout(() => {
-            resolve([...dummyDoctors]);
-        }, 100);
-    });
 };

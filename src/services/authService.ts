@@ -4,8 +4,9 @@ const API_URL = 'http://localhost:8000/api/auth/';
 
 export const login = async (email: string, password: string) => {
   try {
-    const response = await axios.post(API_URL + 'token/', {
-      email,
+    // SimpleJWT expects 'username' and 'password' fields
+    const response = await axios.post(API_URL, {
+      username: email, // Use email as username if that's your login field
       password,
     });
     // The backend returns access and refresh tokens
@@ -28,28 +29,39 @@ export const getProfile = async (token: string) => {
   }
 };
 
-// Dummy isTokenExpired function
-export const isTokenExpired = (_token?: string): boolean => {
-  // For dummy token, always return false (not expired)
-  return false;
+// Update isTokenExpired to decode JWT and check expiration
+export const isTokenExpired = (token?: string): boolean => {
+  if (!token || token.split('.').length !== 3) {
+    return true;
+  }
+  try {
+    // Pad base64url if needed
+    let base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const jwtPayload = JSON.parse(atob(base64));
+    const expirationTime = jwtPayload.exp * 1000; // Convert to milliseconds
+    return Date.now() > expirationTime;
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return true; // If token is malformed, consider it expired
+  }
 };
 
-// Dummy refreshAccessToken function
+// Update refreshAccessToken to call the backend refresh endpoint
 export const refreshAccessToken = async (refreshToken: string) => {
-   return new Promise((resolve, reject) => {
-    // Simulate a delay
-    setTimeout(() => {
-       if (refreshToken === 'dummy-refresh-token') { // Assuming a dummy refresh token
-         const newDummyToken = 'new-dummy-jwt-token';
-         resolve({ token: newDummyToken });
-       } else {
-         reject(new Error('Invalid refresh token'));
-       }
-    }, 500); // Simulate network delay
-  });
+  try {
+    const response = await axios.post(API_URL + 'refresh/', {
+      refresh: refreshToken,
+    });
+    // The backend returns a new access token
+    const { access } = response.data;
+    return { token: access };
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || 'Failed to refresh token');
+  }
 };
 
-// Existing cacheCredentials and getCachedCredentials functions remain
+// Dummy cacheCredentials and getCachedCredentials functions
 // export const cacheCredentials = (email: string, password: string) => {
 //   localStorage.setItem('cachedEmail', email);
 //   localStorage.setItem('cachedPassword', password);

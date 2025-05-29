@@ -16,11 +16,6 @@
         <input type="password" id="password" v-model="password" required placeholder="Enter your password" />
       </div>
 
-      <div v-if="show2FA" class="form-group">
-        <label for="otp">One-Time Password (OTP)</label>
-        <input type="text" id="otp" v-model="otp" required placeholder="Enter the OTP sent to your email" />
-      </div>
-
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
       <button type="submit" class="login-button">Login</button>
@@ -34,44 +29,50 @@
 import { defineComponent, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import store from '@/store';
+import { login, getProfile } from '@/services/authService'; // Import real auth functions
 
 export default defineComponent({
   name: 'LoginView',
   setup() {
     const email = ref('');
     const password = ref('');
-    const otp = ref('');
-    const show2FA = ref(false);
+    // const otp = ref(''); // OTP not implemented with real backend yet
+    // const show2FA = ref(false); // OTP not implemented with real backend yet
     const errorMessage = ref('');
     const router = useRouter();
 
-    // Dummy account credentials for testing
-    const DUMMY_EMAIL = 'test@example.com';
-    const DUMMY_PASSWORD = 'password123';
+    // Remove dummy credentials
+    // const DUMMY_EMAIL = 'test@example.com';
+    // const DUMMY_PASSWORD = 'password123';
 
     const handleLogin = async () => {
       errorMessage.value = ''; // Clear previous errors
+      try {
+        // Use the real login service
+        const { token, refresh } = await login(email.value, password.value);
+        store.commit('setToken', token);
+        store.commit('setRefreshToken', refresh); // Assuming you have a mutation for refresh token
 
-      // Always use dummy account for now
-      if (email.value === DUMMY_EMAIL && password.value === DUMMY_PASSWORD) {
-        const dummyToken = 'dummy-test-token';
-        store.commit('setToken', dummyToken);
-        store.commit('setUser', { name: 'Test User', role: 'admin' });
+        // Fetch user profile
+        const userProfile = await getProfile(token);
+        store.commit('setUser', userProfile);
 
-        router.push('/patients');
-        console.log('*** login successfull ***')
+        // Redirect to the main application area
+        // router.push('/patients'); // Original redirection
+        router.push('/app/patients'); // Corrected redirection to be under /app layout
 
-        console.log('*** redirecting to patients view ***')
-      } else {
-        errorMessage.value = 'Invalid dummy credentials';
+        console.log('*** login successful ***');
+      } catch (error: any) {
+        errorMessage.value = error.message || 'Login failed. Please check your credentials.';
+        console.error('Login error:', error);
       }
     };
 
     return {
       email,
       password,
-      otp,
-      show2FA,
+      // otp,
+      // show2FA,
       errorMessage,
       handleLogin,
     };
@@ -173,9 +174,10 @@ input:focus {
 }
 
 .dummy-credentials {
-  text-align: center;
-  margin-top: 1rem;
-  color: var(--primary-blue);
-  font-size: 0.9rem;
+  /* text-align: center; */
+  /* margin-top: 1rem; */
+  /* color: var(--primary-blue); */
+  /* font-size: 0.9rem; */
+  display: none; /* Hide dummy credentials message */
 }
 </style>

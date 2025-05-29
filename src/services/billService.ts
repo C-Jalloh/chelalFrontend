@@ -1,4 +1,6 @@
 import axios from 'axios';
+import { callApiWithAuthRetry } from './apiClient';
+import store from '@/store';
 
 const API_URL = 'http://localhost:8000/api/bills/';
 
@@ -11,29 +13,45 @@ export interface Bill {
   updated_at?: string;
 }
 
-export const fetchBills = async (token: string): Promise<Bill[]> => {
-  const response = await axios.get(API_URL, {
-    headers: { Authorization: `Bearer ${token}` },
+export const fetchBills = async (): Promise<Bill[]> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.get(API_URL, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const createBill = async (bill: Omit<Bill, 'id' | 'created_at' | 'updated_at'>, token: string): Promise<Bill> => {
-  const response = await axios.post(API_URL, bill, {
-    headers: { Authorization: `Bearer ${token}` },
+export const createBill = async (bill: Omit<Bill, 'id' | 'created_at' | 'updated_at'>): Promise<Bill> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.post(API_URL, bill, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const updateBill = async (bill: Bill, token: string): Promise<Bill> => {
-  const response = await axios.put(`${API_URL}${bill.id}/`, bill, {
-    headers: { Authorization: `Bearer ${token}` },
+export const updateBill = async (bill: Bill): Promise<Bill> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.put(`${API_URL}${bill.id}/`, bill, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
-  return response.data;
 };
 
-export const deleteBill = async (billId: string | number, token: string): Promise<void> => {
-  await axios.delete(`${API_URL}${billId}/`, {
-    headers: { Authorization: `Bearer ${token}` },
+export const deleteBill = async (billId: string | number): Promise<void> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    await axios.delete(`${API_URL}${billId}/`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
   });
 };

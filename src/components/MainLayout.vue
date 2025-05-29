@@ -5,16 +5,29 @@
       <aside class="sidebar">
         <nav>
           <ul>
-            <li><router-link to="/patients">Patients</router-link></li>
-            <li><router-link to="/appointments">Appointments</router-link></li>
-            <li><router-link to="/encounters">Encounters</router-link></li>
-            <li><router-link to="/prescriptions">Prescriptions</router-link></li>
-            <li><router-link to="/billing">Billing</router-link></li>
-            <li><router-link to="/pharmacy">Pharmacy Inventory</router-link></li> 
-            <li><router-link to="/pharmacy/purchase-orders">Purchase Orders</router-link></li>
-            <li><router-link to="/pharmacy/grn">Goods Received Notes</router-link></li> <!-- Add this link -->
-            <li><router-link to="/pharmacy/dispensing-log">Dispensing Log</router-link></li> <!-- Add this link -->
-            <li><router-link to="/pharmacy/stock-adjustments">Stock Adjustments</router-link></li> <!-- Add this link -->
+            <li><router-link to="/app/audit-logs">Audit Logs</router-link></li>
+            <li><router-link to="/app/beds">Beds</router-link></li>
+            <li><router-link to="/app/suppliers">Suppliers</router-link></li>
+            <li><router-link to="/app/medication-categories">Medication Categories</router-link></li>
+            <li><router-link to="/app/medications">Medications</router-link></li>
+            <li><router-link to="/app/stock-batches">Stock Batches</router-link></li>
+            <li><router-link to="/app/purchase-order-items">Purchase Order Items</router-link></li>
+            <li><router-link to="/app/goods-received-notes-items">GRN Items</router-link></li>
+            <li><router-link to="/app/sessions">Sessions</router-link></li>
+            <li><router-link to="/app/tasks">Tasks</router-link></li>
+            <li><router-link to="/app/insurance-details">Insurance Details</router-link></li>
+            <li><router-link to="/app/stock-adjustments-service">Stock Adjustments (Service)</router-link></li>
+            <li><router-link to="/app/note-templates">Note Templates</router-link></li>
+            <li><router-link to="/app/patients">Patients</router-link></li>
+            <li><router-link to="/app/appointments">Appointments</router-link></li>
+            <li><router-link to="/app/encounters">Encounters</router-link></li>
+            <li><router-link to="/app/prescriptions">Prescriptions</router-link></li>
+            <li><router-link to="/app/billing">Billing</router-link></li>
+            <li><router-link to="/app/pharmacy">Pharmacy Inventory</router-link></li> 
+            <li><router-link to="/app/pharmacy/purchase-orders">Purchase Orders</router-link></li>
+            <li><router-link to="/app/pharmacy/grns">Goods Received Notes</router-link></li> <!-- Add this link -->
+            <li><router-link to="/app/pharmacy/dispensing">Dispensing Log</router-link></li> <!-- Add this link -->
+            <li><router-link to="/app/pharmacy/adjustments">Stock Adjustments</router-link></li> <!-- Add this link -->
           </ul>
         </nav>
       </aside>
