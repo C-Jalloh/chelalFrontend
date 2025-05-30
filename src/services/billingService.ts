@@ -108,7 +108,8 @@ let dummyBills: Bill[] = [
   },
 ];
 
-const API_URL = 'http://localhost:8000/api/billing/';
+// Change API_URL to match backend
+const API_URL = 'http://localhost:8000/api/bills/';
 
 export const fetchBills = async () => {
   return callApiWithAuthRetry(async () => {

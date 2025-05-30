@@ -17,6 +17,7 @@ export interface Patient {
   created_at?: string;
   updated_at?: string;
   status?: 'synced' | 'pending_add' | 'pending_update' | 'pending_delete';
+  has_recent_appointment?: boolean;
 }
 
 export const fetchPatients = async (): Promise<Patient[]> => {

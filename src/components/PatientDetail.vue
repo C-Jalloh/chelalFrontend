@@ -40,9 +40,17 @@
         </table>
         <div class="form-actions">
           <button class="edit-btn" @click="startEditing">Edit</button>
-          <button class="delete-btn" @click="confirmDelete">Delete</button>
+          <button class="delete-btn" @click="showDeleteModal = true">Delete</button>
           <button class="close-btn" @click="$emit('close')">Close</button>
         </div>
+        <ConfirmDeleteModal
+          v-if="showDeleteModal"
+          :title="'Delete Patient'"
+          :message="'Are you sure you want to delete this patient? This action cannot be undone.'"
+          :loading="deleting"
+          @close="showDeleteModal = false"
+          @confirm="handleDeleteConfirmed"
+        />
       </div>
       <div v-else>
         <h3>Edit Patient</h3>
@@ -71,10 +79,12 @@
 import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
 import { getPatientById, updatePatient, deletePatient, type Patient } from '@/services/patientService';
 import { updatePatientOffline, deletePatientOffline } from '@/services/offlineService';
+import ConfirmDeleteModal from './ConfirmDeleteModal.vue';
 import store from '@/store';
 
 export default defineComponent({
   name: 'PatientDetail',
+  components: { ConfirmDeleteModal },
   props: {
     patient: { type: Object as () => Patient, required: true },
   },
@@ -87,6 +97,8 @@ export default defineComponent({
     const errorMessage = ref('');
     const updateErrorMessage = ref('');
     const isOnline = ref(navigator.onLine);
+    const showDeleteModal = ref(false);
+    const deleting = ref(false);
 
     // Add this function to fix the ReferenceError
     const handleOnlineStatusChange = () => {
@@ -98,12 +110,10 @@ export default defineComponent({
       loading.value = true;
       errorMessage.value = '';
       try {
-        const token = store.getters.isAuthenticated ? store.state.token : null;
-        if (token) {
-          const onlinePatient = await getPatientById(patientId, token);
+        if (navigator.onLine && store.getters.isAuthenticated) {
+          const onlinePatient = await getPatientById(patientId);
           patientDetails.value = onlinePatient;
           editedPatient.value = { ...onlinePatient };
-          // TODO: Update offline storage with fetched online patient details
         } else {
           errorMessage.value = 'User not authenticated.';
         }
@@ -144,17 +154,14 @@ export default defineComponent({
 
     const handleUpdate = async () => {
       if (!editedPatient.value || editedPatient.value.id === undefined) return; // Ensure ID exists
-
       updateErrorMessage.value = '';
       try {
         if (navigator.onLine && editedPatient.value.status !== 'pending_add') { // Online update for synced patients
-          const token = store.getters.isAuthenticated ? store.state.token : null;
-          if (token) {
-            const updated = await updatePatient(editedPatient.value as Patient, token); // Cast for online update
+          if (store.getters.isAuthenticated) {
+            const updated = await updatePatient(editedPatient.value as Patient); // Only pass patient object
             patientDetails.value = updated;
             isEditing.value = false;
             emit('patientUpdated', updated);
-            // TODO: Update offline storage with synced patient
           } else {
             updateErrorMessage.value = 'User not authenticated.';
           }
@@ -169,31 +176,23 @@ export default defineComponent({
       }
     };
 
-    const confirmDelete = async () => {
+    const handleDeleteConfirmed = async () => {
       if (!patientDetails.value || !patientDetails.value.id) return;
-
-      const confirmed = confirm('Are you sure you want to delete this patient?');
-      if (!confirmed) return;
-
+      deleting.value = true;
       try {
         if (navigator.onLine) {
-          // Online deletion
-          const token = store.getters.isAuthenticated ? store.state.token : null;
-          if (token) {
-            await deletePatient(patientDetails.value.id, token);
-            emit('patientDeleted', patientDetails.value.id);
-          } else {
-            alert('User not authenticated.');
-          }
+          await deletePatient(patientDetails.value.id);
+          emit('patientDeleted', patientDetails.value.id);
         } else {
-          // Offline deletion
           await deletePatientOffline(patientDetails.value.id);
           emit('patientDeleted', patientDetails.value.id);
         }
-        // Close the modal after deletion
         emit('close');
       } catch (error: any) {
         alert('Error deleting patient: ' + error.message);
+      } finally {
+        deleting.value = false;
+        showDeleteModal.value = false;
       }
     };
 
@@ -215,10 +214,12 @@ export default defineComponent({
       errorMessage,
       updateErrorMessage,
       isOnline,
+      showDeleteModal,
+      deleting,
       startEditing,
       cancelEditing,
       handleUpdate,
-      confirmDelete,
+      handleDeleteConfirmed,
     };
   },
 });

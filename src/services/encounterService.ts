@@ -23,6 +23,8 @@ export interface Encounter {
   // Denormalized fields for display
   patient_name?: string;
   doctor_name?: string;
+  appointment_date?: string;
+  appointment_time?: string;
 }
 
 const API_URL = 'http://localhost:8000/api/encounters/';
@@ -37,7 +39,14 @@ export const fetchEncounters = async (filters?: { patient_id?: string, appointme
     const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return response.data;
+    // Map backend fields to frontend fields for denormalized info
+    return response.data.map((enc: any) => ({
+      ...enc,
+      patient_name: enc.patient_name,
+      doctor_name: enc.doctor_name,
+      appointment_date: enc.appointment_date,
+      appointment_time: enc.appointment_time,
+    }));
   });
 };
 
@@ -48,7 +57,14 @@ export const getEncounterById = async (encounterId: string | number): Promise<En
     const response = await axios.get(`${API_URL}${encounterId}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return response.data;
+    const enc = response.data;
+    return {
+      ...enc,
+      patient_name: enc.patient_name,
+      doctor_name: enc.doctor_name,
+      appointment_date: enc.appointment_date,
+      appointment_time: enc.appointment_time,
+    };
   });
 };
 

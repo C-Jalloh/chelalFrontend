@@ -59,6 +59,7 @@ export default defineComponent({
         // end: Optional, if appointments have a duration
         backgroundColor: getEventColor(appt.status),
         borderColor: getEventColor(appt.status),
+        classNames: [`appt-status-${(appt.status || '').toLowerCase()}`], // Add status class
         extendedProps: { ...appt }, // Store the original appointment object
       }));
     };
@@ -153,8 +154,42 @@ export default defineComponent({
   font-size: 0.85em;
   padding: 2px 4px;
 }
+
+/* Make the event bar thicker and span the full width, remove dot */
+.fc .fc-daygrid-event {
+  border-radius: 6px;
+  min-height: 22px;
+  padding: 0 6px;
+  font-weight: 500;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: none !important;
+}
+.fc .fc-daygrid-event-dot {
+  display: none !important;
+}
 .fc .fc-event-main {
-    color: white !important; /* Ensure text is visible on colored backgrounds */
+  color: #fff !important;
+  padding: 0.2em 0.5em;
+  width: 100%;
+  display: block;
+}
+
+/* Appointment status color bars */
+.fc .appt-status-scheduled {
+  background-color: #007bff !important;
+  color: #fff !important;
+}
+.fc .appt-status-completed {
+  background-color: #28a745 !important;
+  color: #fff !important;
+}
+.fc .appt-status-cancelled {
+  background-color: #dc3545 !important;
+  color: #fff !important;
+}
+.fc .appt-status-pending {
+  background-color: #ffc107 !important;
+  color: #111 !important;
 }
 
 /* Ensure the calendar is visible and has some height */

@@ -1,60 +1,43 @@
 <template>
-  <div class="add-appointment-form-modal" @mousedown.self="$emit('close')">
-    <div class="modal-content">
-      <h3 class="modal-title">{{ formTitle }}</h3>
-      <form @submit.prevent="handleSubmit">
+  <div class="add-appointment-modal" @mousedown.self="$emit('close')">
+    <div class="modal-content" tabindex="0">
+      <h3 class="modal-title">{{ existingAppointment ? 'Edit Appointment' : 'Add Appointment' }}</h3>
+      <form @submit.prevent="handleSubmit" class="appointment-form">
         <div class="form-grid">
           <div class="form-group">
-            <label for="patient">Patient</label>
-            <select id="patient" v-model="appointment.patient_id" required>
-              <option disabled value="">Select Patient</option>
-              <option v-for="patient in patients" :key="patient.id" :value="patient.id">
-                {{ patient.first_name }} {{ patient.last_name }} (ID: {{ patient.unique_id }})
-              </option>
+            <label>Patient</label>
+            <input v-model="form.patient_name" type="text" required />
+          </div>
+          <div class="form-group">
+            <label>Doctor</label>
+            <input v-model="form.doctor_name" type="text" required />
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <input v-model="form.appointment_date" type="date" required />
+          </div>
+          <div class="form-group">
+            <label>Time</label>
+            <input v-model="form.appointment_time" type="time" required />
+          </div>
+          <div class="form-group full-width-group">
+            <label>Status</label>
+            <select v-model="form.status" required>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Pending">Pending</option>
             </select>
           </div>
-
-          <div class="form-group">
-            <label for="doctor">Doctor</label>
-            <select id="doctor" v-model="appointment.doctor_id" required>
-              <option disabled value="">Select Doctor</option>
-              <option v-for="doctor in doctors" :key="doctor.id" :value="doctor.id">
-                {{ doctor.name }}
-              </option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label for="appointment_date">Date</label>
-            <input type="date" id="appointment_date" v-model="appointment.appointment_date" required />
-          </div>
-
-          <div class="form-group">
-            <label for="appointment_time">Time</label>
-            <input type="time" id="appointment_time" v-model="appointment.appointment_time" required />
+          <div class="form-group full-width-group notes-group">
+            <label>Notes</label>
+            <textarea v-model="form.notes" placeholder="Optional notes..."></textarea>
           </div>
         </div>
-
-        <div class="form-group full-width-group">
-          <label for="status">Status</label>
-          <select id="status" v-model="appointment.status" required>
-            <option value="Scheduled">Scheduled</option>
-            <option value="Pending">Pending</option>
-            <option value="Completed">Completed</option>
-            <option value="Cancelled">Cancelled</option>
-          </select>
-        </div>
-
-        <div class="form-group full-width-group notes-group">
-          <label for="notes">Notes</label>
-          <textarea id="notes" v-model="appointment.notes"></textarea>
-        </div>
-
         <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-
         <div class="form-actions">
-          <button type="submit" class="submit-btn">{{ isEditing ? 'Update' : 'Save' }} Appointment</button>
           <button type="button" @click="$emit('close')" class="cancel-btn">Cancel</button>
+          <button type="submit" class="submit-btn">{{ existingAppointment ? 'Update' : 'Add' }}</button>
         </div>
       </form>
     </div>
@@ -63,7 +46,7 @@
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, type PropType, watch } from 'vue';
-import { type Appointment, createAppointment, updateAppointment, getDoctors } from '@/services/appointmentService';
+import { type Appointment, createAppointment, getDoctors, updateAppointmentBackend, type AppointmentBackend } from '@/services/appointmentService';
 import { type Patient, fetchPatients } from '@/services/patientService'; // To fetch patients for dropdown
 import store from '@/store';
 
@@ -101,7 +84,7 @@ export default defineComponent({
           errorMessage.value = 'Authentication token not found.';
           return;
         }
-        patients.value = await fetchPatients(token); // Fetch all patients
+        patients.value = await fetchPatients(); // Fetch all patients
         doctors.value = await getDoctors(); // Fetch doctors
       } catch (error: any) {
         errorMessage.value = `Failed to load data: ${error.message}`;
@@ -178,11 +161,30 @@ export default defineComponent({
       }
 
       try {
+        // Always send status as lowercase for backend compatibility
+        let statusLower: string;
+        switch (appointment.value.status.toLowerCase()) {
+          case 'scheduled': statusLower = 'scheduled'; break;
+          case 'completed': statusLower = 'completed'; break;
+          case 'cancelled': statusLower = 'cancelled'; break;
+          case 'pending': statusLower = 'pending'; break;
+          default: statusLower = 'scheduled'; // fallback
+        }
         if (isEditing.value && props.existingAppointment?.id) {
-          const updated = await updateAppointment(props.existingAppointment.id, appointment.value, token);
-          emit('appointmentUpdated', updated);
+          const backendPayload: AppointmentBackend = {
+            id: props.existingAppointment.id,
+            patient: appointment.value.patient_id,
+            doctor: appointment.value.doctor_id,
+            date: appointment.value.appointment_date,
+            time: appointment.value.appointment_time,
+            status: statusLower,
+            notes: appointment.value.notes,
+          };
+          await updateAppointmentBackend(backendPayload);
+          emit('appointmentUpdated', backendPayload);
         } else {
-          const newAppt = await createAppointment(appointment.value, token);
+          // For create, keep using the original function (if it works)
+          const newAppt = await createAppointment(appointment.value);
           emit('appointmentAdded', newAppt);
         }
         emit('close');
@@ -205,110 +207,123 @@ export default defineComponent({
 </script>
 
 <style scoped>
-.add-appointment-form-modal {
+.add-appointment-modal {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.4);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
-}
-.modal-content {
-  background: #fff;
-  color: #111;
-  padding: 2rem 2.5rem;
-  border-radius: 12px;
-  min-width: 520px; /* Slightly wider */
-  max-width: 700px;
-  box-shadow: 0 8px 32px rgba(30,58,92,0.18);
-}
-.modal-title {
-  color: var(--primary-blue);
-  font-weight: 600;
-  margin-bottom: 2rem;
-  text-align: center;
-  font-size: 1.6rem;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.2rem 1.8rem; /* Increased gap */
-  margin-bottom: 1.2rem; /* Adjusted margin */
+  z-index: 50;
 }
 
-.full-width-group {
-  grid-column: 1 / -1; /* Span full width */
-  margin-top: 1.2rem; /* Add margin top for separation */
+.modal-content {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 32rem;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  padding: 2rem;
+  outline: none;
+}
+
+.modal-title {
+  color: #1e3a8a;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-size: 1.5rem;
+}
+
+.appointment-form {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
 }
+
 .form-group label {
-  margin-bottom: 0.6rem; /* Increased margin */
   font-weight: 500;
-  color: #333;
-  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
 }
+
 .form-group input,
 .form-group select,
 .form-group textarea {
-  padding: 0.6rem 0.8rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  font-size: 0.95rem;
-  width: 100%;
-  box-sizing: border-box;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
 }
-.form-group input:focus,
-.form-group select:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 2px rgba(30, 58, 92, 0.15);
+
+.form-group textarea {
+  min-height: 3rem;
+  resize: vertical;
 }
+
+.full-width-group {
+  grid-column: span 2;
+}
+
 .notes-group {
-  /* grid-column: 1 / -1; /* No longer needed here, handled by full-width-group */
-  margin-top: 1.2rem; /* Ensure consistent margin */
+  grid-column: span 2;
+}
+
+.error-message {
+  color: #dc2626;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
 }
 
 .form-actions {
-  margin-top: 2rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
-  gap: 1rem;
+  gap: 0.75rem;
 }
-.submit-btn {
-  background: var(--primary-blue);
-  color: var(--white);
-  border: none;
-  padding: 0.7rem 1.5rem;
-  border-radius: 4px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-.submit-btn:hover {
-  background: var(--teal);
-}
+
 .cancel-btn {
-  background: #ccc;
-  color: #333;
-  border: none;
-  padding: 0.7rem 1.5rem;
-  border-radius: 4px;
+  background: #6b7280;
+  color: white;
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background 0.3s;
 }
+
 .cancel-btn:hover {
-  background: #b0b0b0;
+  background: #4b5563;
 }
-.error-message {
-  color: red;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
+
+.submit-btn {
+  background: #1e3a8a;
+  color: white;
+  padding: 0.5rem 1.5rem;
+  border-radius: 0.375rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.submit-btn:hover {
+  background: #2563eb;
 }
 </style>

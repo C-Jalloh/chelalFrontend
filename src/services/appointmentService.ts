@@ -37,7 +37,12 @@ export const fetchAppointments = async (): Promise<Appointment[]> => {
     const response = await axios.get(API_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return response.data;
+    // Map backend fields to frontend fields
+    return response.data.map((appt: any) => ({
+      ...appt,
+      appointment_date: appt.date,
+      appointment_time: appt.time,
+    }));
   });
 };
 
@@ -48,7 +53,12 @@ export const getAppointmentById = async (appointmentId: string | number): Promis
     const response = await axios.get(`${API_URL}${appointmentId}/`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return response.data;
+    const appt = response.data;
+    return {
+      ...appt,
+      appointment_date: appt.date,
+      appointment_time: appt.time,
+    };
   });
 };
 
@@ -64,6 +74,9 @@ export const createAppointment = async (appointment: Omit<Appointment, 'id'>): P
 };
 
 export const updateAppointment = async (appointment: Appointment): Promise<Appointment> => {
+  if (!appointment.id) {
+    throw new Error('Cannot update appointment: appointment ID is undefined');
+  }
   return callApiWithAuthRetry(async () => {
     const token = store.getters.getToken;
     if (!token) throw new Error('No token available for API call');
@@ -75,6 +88,9 @@ export const updateAppointment = async (appointment: Appointment): Promise<Appoi
 };
 
 export const deleteAppointment = async (appointmentId: string | number): Promise<void> => {
+  if (!appointmentId) {
+    throw new Error('Cannot delete appointment: appointment ID is undefined');
+  }
   return callApiWithAuthRetry(async () => {
     const token = store.getters.getToken;
     if (!token) throw new Error('No token available for API call');
@@ -130,5 +146,42 @@ export const fetchAppointmentNotificationInfo = async (appointmentId: string | n
       }
       resolve(dummyInfo);
     }, 400);
+  });
+};
+
+export const getDoctors = async (): Promise<any[]> => {
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    // Fetch all users, then filter for doctors (assuming backend provides role info)
+    const response = await axios.get('http://localhost:8000/api/users/', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    // Filter users with role 'Doctor'
+    return response.data.filter((user: any) => user.role && user.role.name === 'Doctor');
+  });
+};
+
+export interface AppointmentBackend {
+  id?: string | number;
+  patient: string | number;
+  doctor: string | number;
+  date: string;
+  time: string;
+  status: string;
+  notes?: string;
+}
+
+export const updateAppointmentBackend = async (appointment: AppointmentBackend): Promise<any> => {
+  if (!appointment.id) {
+    throw new Error('Cannot update appointment: appointment ID is undefined');
+  }
+  return callApiWithAuthRetry(async () => {
+    const token = store.getters.getToken;
+    if (!token) throw new Error('No token available for API call');
+    const response = await axios.put(`${API_URL}${appointment.id}/`, appointment, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
   });
 };

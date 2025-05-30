@@ -1,3 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Legacy global styles below. Remove or refactor as you migrate to Tailwind. */
+
 /* Color palette */
 :root {
   --primary-blue: #1e3a5c;

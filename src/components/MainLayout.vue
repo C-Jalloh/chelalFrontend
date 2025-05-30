@@ -1,10 +1,17 @@
 <!-- Main layout with sidebar navigation and topbar -->
 <template>
   <div class="bucket">
+    <header class="topbar">
+      <span>Chelal HMS</span>
+      <button @click="handleLogout" class="logout-button">Logout</button>
+    </header>
     <div class="layout">
       <aside class="sidebar">
         <nav>
           <ul>
+            <li><router-link to="/app/patients"><UserIcon class="icon-th sidebar-icon" /> Patients</router-link></li>
+            <li><router-link to="/app/appointments"><CalendarDaysIcon class="icon-th sidebar-icon" /> Appointments</router-link></li>
+            <li><router-link to="/app/encounters"><CalendarDaysIcon class="icon-th sidebar-icon" /> Encounters</router-link></li>
             <li><router-link to="/app/audit-logs">Audit Logs</router-link></li>
             <li><router-link to="/app/beds">Beds</router-link></li>
             <li><router-link to="/app/suppliers">Suppliers</router-link></li>
@@ -18,9 +25,6 @@
             <li><router-link to="/app/insurance-details">Insurance Details</router-link></li>
             <li><router-link to="/app/stock-adjustments-service">Stock Adjustments (Service)</router-link></li>
             <li><router-link to="/app/note-templates">Note Templates</router-link></li>
-            <li><router-link to="/app/patients">Patients</router-link></li>
-            <li><router-link to="/app/appointments">Appointments</router-link></li>
-            <li><router-link to="/app/encounters">Encounters</router-link></li>
             <li><router-link to="/app/prescriptions">Prescriptions</router-link></li>
             <li><router-link to="/app/billing">Billing</router-link></li>
             <li><router-link to="/app/pharmacy">Pharmacy Inventory</router-link></li> 
@@ -32,10 +36,6 @@
         </nav>
       </aside>
       <div class="main-content">
-        <header class="topbar">
-          <span>Chelal HMS</span>
-          <button @click="handleLogout" class="logout-button">Logout</button>
-        </header>
         <router-view />
       </div>
     </div>
@@ -46,9 +46,14 @@
 import { defineComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import store from '@/store';
+import { CalendarDaysIcon, UserIcon } from '@heroicons/vue/24/outline';
 
 export default defineComponent({
   name: 'MainLayout',
+  components: {
+    CalendarDaysIcon,
+    UserIcon,
+  },
   setup() {
     const router = useRouter();
 
@@ -69,10 +74,33 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
   width: 100vw;
-  height: 100vh;
+  min-width: 0;
   min-height: 100vh;
-  min-width: 100vw;
-  overflow: hidden;
+  height: 100vh;
+  overflow-x: unset;
+  overflow-y: unset;
+  box-sizing: border-box;
+}
+.topbar {
+  background: var(--white);
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--light-gray);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  width: 100%;
+  z-index: 10;
+  position: relative;
+  box-sizing: border-box;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.topbar span:first-child {
+  color: var(--primary-blue);
+  font-weight: bold;
+  font-size: 1.2rem;
+  word-break: break-word;
 }
 .layout {
   display: flex;
@@ -82,17 +110,20 @@ export default defineComponent({
   height: 100%;
   width: 100%;
   background: var(--primary-blue);
+  flex: 1 1 0;
 }
 .sidebar {
-  width: 220px;
+  width: 300px;
+  min-width: 300px;
   background: var(--sidebar-blue);
   color: var(--white);
   padding: 1rem 0;
   transition: transform 0.3s ease;
   min-height: 100vh;
-  height: 100%;
+  height: 100vh;
   flex-shrink: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: auto;
 }
 .sidebar ul {
   list-style: none;
@@ -122,24 +153,6 @@ export default defineComponent({
   box-sizing: border-box;
   overflow-y: auto; /* Changed from overflow: hidden to allow vertical scrolling */
 }
-.topbar {
-  background: var(--white);
-  padding: 1rem 2rem;
-  border-bottom: 1px solid var(--light-gray);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-shrink: 0;
-}
-.topbar span:first-child {
-  color: var(--primary-blue);
-  font-weight: bold;
-  font-size: 1.2rem;
-}
-.status-indicator {
-  font-size: 0.95rem;
-  color: var(--teal);
-}
 .logout-button {
   background-color: var(--teal);
   color: var(--white);
@@ -148,12 +161,33 @@ export default defineComponent({
   border-radius: 4px;
   cursor: pointer;
   font-size: 0.9rem;
+  margin-left: 1rem;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .logout-button:hover {
   background-color: var(--primary-blue);
 }
+.sidebar-icon {
+  width: 1em !important;
+  height: 1em !important;
+  min-width: 1em !important;
+  min-height: 1em !important;
+  max-width: 1em !important;
+  max-height: 1em !important;
+  margin-right: 0.45em;
+  vertical-align: middle;
+}
 
 @media (max-width: 900px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+  }
   .layout {
     flex-direction: column;
     height: auto;
@@ -181,6 +215,12 @@ export default defineComponent({
   }
 }
 @media (max-width: 600px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0.5rem 1rem;
+    gap: 0.5rem;
+  }
   .sidebar ul {
     flex-direction: column;
     align-items: flex-start;
@@ -193,11 +233,6 @@ export default defineComponent({
     padding: 0.5rem;
     min-height: 50vh;
     height: auto;
-  }
-  .topbar {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 0.5rem 1rem;
   }
 }
 </style>

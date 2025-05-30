@@ -4,19 +4,22 @@ const API_URL = 'http://localhost:8000/api/auth/';
 
 export const login = async (email: string, password: string) => {
   try {
-    // SimpleJWT expects 'username' and 'password' fields
+    // If your backend uses username, change this to username; if it uses email, keep as email
     const response = await axios.post(API_URL, {
-      username: email, // Use email as username if that's your login field
+      username: email, // Change to 'email' if your backend expects 'email'
       password,
     });
-    // The backend returns access and refresh tokens
     const { access, refresh } = response.data;
-    // Optionally fetch user profile here if needed
     return { token: access, refresh, user: null };
   } catch (error: any) {
     throw new Error(error.response?.data?.detail || 'Login failed');
   }
 };
+
+// Helper to always use the correct access token for authenticated requests
+export const getAuthHeaders = (token: string) => ({
+  Authorization: `Bearer ${token}`,
+});
 
 export const getProfile = async (token: string) => {
   try {

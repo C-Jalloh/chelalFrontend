@@ -2,41 +2,44 @@
   <div class="appointments-view-bg">
     <div class="appointments-list-container">
       <div class="appointments-header">
-        <h2>Appointments</h2>
+        <h2><CalendarDaysIcon class="icon-header" /> Appointments</h2>
         <div class="view-mode-toggle">
-          <button @click="switchToTableView" :class="{ active: currentViewMode === 'table' }">Table View</button>
-          <button @click="switchToCalendarView" :class="{ active: currentViewMode === 'calendar' }">Calendar View</button>
+          <button @click="switchToTableView" :class="['view-mode-btn', { active: currentViewMode === 'table' }]"><EyeIcon class="icon-btn" /> Table View</button>
+          <button @click="switchToCalendarView" :class="['view-mode-btn', { active: currentViewMode === 'calendar' }]"><CalendarDaysIcon class="icon-btn" /> Calendar View</button>
         </div>
-        <button @click="openAddAppointmentModal" class="add-appointment-btn">Add Appointment</button>
+        <button @click="openAddAppointmentModal" class="add-appointment-btn"><PencilSquareIcon class="icon-btn" /> Add Appointment</button>
       </div>
 
       <div v-if="currentViewMode === 'table'">
         <div class="filters-container">
+          <UserIcon class="icon-search" />
           <input type="text" v-model="filterPatientName" placeholder="Filter by Patient Name..." class="filter-input" />
+          <UserGroupIcon class="icon-search" />
           <input type="text" v-model="filterDoctorName" placeholder="Filter by Doctor Name..." class="filter-input" />
+          <ClockIcon class="icon-search" />
           <input type="date" v-model="filterDate" class="filter-input" />
           <button @click="clearFilters" class="clear-filters-btn">Clear Filters</button>
         </div>
 
         <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-        <div class="appointments-table-wrapper">
+        <div class="appointments-table-wrapper responsive-table-wrapper">
           <table class="appointments-table">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Patient</th>
-                <th>Doctor</th>
-                <th>Date</th>
-                <th>Time</th>
+                <th><UserIcon class="icon-th" /> Patient</th>
+                <th><UserGroupIcon class="icon-th" /> Doctor</th>
+                <th><CalendarDaysIcon class="icon-th" /> Date</th>
+                <th><ClockIcon class="icon-th" /> Time</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td>Loading appointments...</td></tr>
-              <tr v-else-if="filteredAppointments.length === 0"><td>No appointments match your filters or none exist.</td></tr>
-              <tr v-for="appointment in filteredAppointments" :key="appointment.id">
+              <tr v-if="loading"><td colspan="7">Loading appointments...</td></tr>
+              <tr v-else-if="paginatedAppointments.length === 0"><td colspan="7">No appointments match your filters or none exist.</td></tr>
+              <tr v-for="appointment in paginatedAppointments" :key="appointment.id">
                 <td>{{ appointment.id }}</td>
                 <td>{{ appointment.patient_name || appointment.patient_id }}</td>
                 <td>{{ appointment.doctor_name || appointment.doctor_id }}</td>
@@ -44,13 +47,20 @@
                 <td>{{ appointment.appointment_time }}</td>
                 <td><span :class="`status-${appointment.status.toLowerCase()}`">{{ appointment.status }}</span></td>
                 <td>
-                  <button @click="viewAppointment(appointment)" class="action-btn view-btn">View</button>
-                  <button @click="editAppointment(appointment)" class="action-btn edit-btn">Edit</button>
-                  <button @click="confirmDelete(appointment.id)" class="action-btn delete-btn">Delete</button>
+                  <div class="table-action-group">
+                    <button @click="viewAppointment(appointment)" class="action-btn view-btn"><EyeIcon class="icon-btn" /> View</button>
+                    <button @click="editAppointment(appointment)" class="action-btn edit-btn"><PencilSquareIcon class="icon-btn" /> Edit</button>
+                    <button @click="confirmDelete(appointment.id)" class="action-btn delete-btn"><TrashIcon class="icon-btn" /> Delete</button>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
+        </div>
+        <div class="pagination-controls">
+          <button :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">&lt; Prev</button>
+          <span>Page {{ currentPage }} of {{ totalPages }}</span>
+          <button :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Next &gt;</button>
         </div>
       </div>
 
@@ -74,7 +84,6 @@
         :appointment="appointmentToView" 
         @close="closeDetailModal" 
       />
-
     </div>
   </div>
 </template>
@@ -85,14 +94,16 @@ import { fetchAppointments, deleteAppointment, type Appointment } from '@/servic
 import store from '@/store';
 import AddAppointmentForm from '../components/AddAppointmentForm.vue';
 import AppointmentDetailModal from '../components/AppointmentDetailModal.vue';
-import AppointmentCalendar from '../components/AppointmentCalendar.vue'; // Import the new calendar component
+import AppointmentCalendar from '../components/AppointmentCalendar.vue';
+import { CalendarDaysIcon, UserIcon, UserGroupIcon, ClockIcon, PencilSquareIcon, EyeIcon, TrashIcon } from '@heroicons/vue/24/outline';
 
 export default defineComponent({
   name: 'AppointmentsView',
   components: { 
     AddAppointmentForm, 
     AppointmentDetailModal, 
-    AppointmentCalendar // Register the calendar component
+    AppointmentCalendar,
+    CalendarDaysIcon, UserIcon, UserGroupIcon, ClockIcon, PencilSquareIcon, EyeIcon, TrashIcon
   },
   setup() {
     const appointments = ref<Appointment[]>([]);
@@ -118,7 +129,7 @@ export default defineComponent({
           loading.value = false;
           return;
         }
-        appointments.value = await fetchAppointments(token);
+        appointments.value = await fetchAppointments( );
       } catch (error: any) {
         errorMessage.value = `Failed to load appointments: ${error.message || 'Unknown error'}`;
         console.error(errorMessage.value, error);
@@ -210,12 +221,23 @@ export default defineComponent({
             alert('User not authenticated.');
             return;
           }
-          await deleteAppointment(appointmentId, token);
+          await deleteAppointment(appointmentId);
           refreshAppointments();
         } catch (error: any) {
           alert(`Failed to delete appointment: ${error.message || 'Unknown error'}`);
         }
       }
+    };
+
+    const currentPage = ref(1);
+    const pageSize = ref(10);
+    const paginatedAppointments = computed(() => {
+      const start = (currentPage.value - 1) * pageSize.value;
+      return filteredAppointments.value.slice(start, start + pageSize.value);
+    });
+    const totalPages = computed(() => Math.ceil(filteredAppointments.value.length / pageSize.value) || 1);
+    const goToPage = (page: number) => {
+      if (page >= 1 && page <= totalPages.value) currentPage.value = page;
     };
 
     onMounted(() => {
@@ -247,167 +269,40 @@ export default defineComponent({
       switchToTableView,
       handleCalendarDateClick,
       handleCalendarEventClick,
+      paginatedAppointments,
+      currentPage,
+      totalPages,
+      goToPage,
     };
   },
 });
 </script>
 
 <style scoped>
-.appointments-view-bg {
-  background: #eaf4fb; /* blueish white from PatientsView */
-  color: #111; /* black text from PatientsView */
-  min-height: 100vh;
-  width: 100%; /* Changed from 100vw to 100% to fit within parent */
-  padding: 1rem 2rem; /* Added padding */
-  box-sizing: border-box;
+.icon-header,
+.icon-btn,
+.icon-search,
+.icon-th {
+  width: 1.1em !important;
+  height: 1.1em !important;
+  min-width: 1.1em !important;
+  min-height: 1.1em !important;
+  max-width: 1.1em !important;
+  max-height: 1.1em !important;
+  vertical-align: middle;
+  margin-right: 0.35em;
+  /* Align icons with input fields */
+  position: relative;
+  top: 0.08em;
 }
 
-.appointments-list-container {
-  background: #fff; /* White background for the content area */
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-}
-
-.appointments-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.appointments-header h2 {
-  color: var(--primary-blue);
-  margin: 0;
-  font-size: 1.8rem;
-}
-
-.view-mode-toggle button {
-  background: #f0f6fa;
-  color: var(--primary-blue);
-  border: 1px solid var(--primary-blue);
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  margin-left: 0.5rem;
-  transition: background-color 0.2s, color 0.2s;
-}
-
-.view-mode-toggle button.active {
-  background: var(--primary-blue);
-  color: var(--white);
-}
-
-.view-mode-toggle button:hover:not(.active) {
-  background: #e6f3fb;
-}
-
-.add-appointment-btn {
-  background: var(--primary-blue);
-  color: var(--white);
-  border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: background-color 0.2s;
-}
-
-.add-appointment-btn:hover {
-  background: var(--teal);
-}
-
-.filters-container {
-  display: flex;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: #f8f9fa; /* Light background for filter area */
-  border-radius: 6px;
-}
-
-.filter-input {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  flex-grow: 1;
-}
-
-.clear-filters-btn {
-  padding: 0.5rem 1rem;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.clear-filters-btn:hover {
-  background-color: #5a6268;
-}
-
-.view-mode-switcher {
-  display: flex;
-  justify-content: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.view-mode-btn {
-  padding: 0.5rem 1rem;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  transition: background-color 0.2s;
-}
-
-.view-mode-btn:hover {
-  background-color: #0056b3;
-}
-
-.view-mode-btn.active {
-  background-color: #0056b3;
-  font-weight: bold;
-}
-
-.appointments-table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  margin-bottom: 1rem;
-}
-
-.appointments-table {
-  width: 100%;
-  border-collapse: collapse;
-  color: #111;
-}
-
-.appointments-table th,
-.appointments-table td {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.appointments-table th {
-  background: #f0f6fa; /* Lighter blue for table header */
-  color: var(--primary-blue);
-  font-weight: 600;
-}
-
-.appointments-table tr:nth-child(even) {
-  background-color: #f9fcff; /* Slightly off-white for even rows */
-}
-
-.appointments-table tr:hover {
-  background-color: #e6f3fb;
+.filters-container .icon-search {
+  margin-right: 0.3em;
+  margin-left: 0.1em;
+  position: relative;
+  top: 0.18em;
+  display: inline-block;
+  vertical-align: middle;
 }
 
 .status-scheduled { color: #007bff; font-weight: bold; }
@@ -415,32 +310,227 @@ export default defineComponent({
 .status-cancelled { color: #dc3545; font-weight: bold; }
 .status-pending { color: #ffc107; font-weight: bold; }
 
-.action-btn {
-  padding: 0.3rem 0.6rem;
-  margin-right: 0.4rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  border: 1px solid transparent;
+/* Restored original class-based layout and button styles */
+.appointments-view-bg {
+  background-color: #1e3a5c; /* dark blue */
+  min-height: 100vh;
+  padding: 1rem;
 }
-.view-btn { background-color: #6c757d; color: white; }
-.view-btn:hover { background-color: #5a6268; }
-.edit-btn { background-color: var(--primary-blue); color: white; }
-.edit-btn:hover { background-color: var(--teal); }
-.delete-btn { background-color: #dc3545; color: white; }
-.delete-btn:hover { background-color: #c82333; }
+
+.appointments-list-container {
+  background-color: #fff;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  padding: 2rem;
+}
+
+.appointments-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.appointments-header h2 {
+  color: #1e3a8a;
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+}
+
+.view-mode-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+.view-mode-btn {
+  background: #fff;
+  border: 1.5px solid var(--primary-blue);
+  border-radius: 0.375rem;
+  color: var(--primary-blue);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.view-mode-btn:hover {
+  background: #f0f6fa;
+}
+.view-mode-btn.active {
+  background: var(--primary-blue);
+  color: #fff;
+  border-color: var(--primary-blue);
+}
+
+.add-appointment-btn {
+  background-color: var(--primary-blue) !important;
+  border: none;
+  border-radius: 0.375rem;
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.add-appointment-btn:hover {
+  background-color: #163052 !important;
+}
+
+.filters-container {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-input {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  width: 100%;
+  max-width: 250px;
+}
+
+.clear-filters-btn {
+  background-color: var(--primary-blue);
+  border: none;
+  border-radius: 0.375rem;
+  color: #fff;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  transition: background-color 0.3s;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.clear-filters-btn:hover {
+  background-color: #163052;
+}
 
 .error-message {
-  color: red;
-  margin-bottom: 1rem;
-  padding: 0.75rem;
-  background-color: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 4px;
+  background-color: #fee2e2;
+  border: 1px solid #f87171;
+  border-radius: 0.375rem;
+  color: #b91c1c;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem 1rem;
 }
 
-/* Additional styles for calendar view if needed */
-.appointments-calendar-wrapper {
-  margin-top: 1rem;
+.appointments-table-wrapper {
+  width: 100%;
+  /* Remove overflow-x and max-height to allow table to grow/shrink naturally */
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  max-height: unset;
+  height: auto;
+}
+
+.appointments-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: #111;
+}
+
+.appointments-table th,
+.appointments-table td {
+  padding: 0.72rem 1rem; /* 10% less than previous 0.8rem */
+  border: none !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.appointments-table th {
+  background: var(--primary-blue);
+  color: #fff;
+  font-weight: 600;
+}
+
+.appointments-table tr:nth-child(even) {
+  background-color: #eaf0fa;
+}
+
+.appointments-table tr:hover {
+  background-color: #e0e7ef;
+}
+
+.table-action-group {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin: 1rem 0;
+  flex-wrap: wrap;
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 0.7rem 1.5rem;
+}
+
+.pagination-controls button {
+  background: #f0f6fa !important;
+  color: var(--primary-blue) !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  padding: 0.4rem 1.1rem !important;
+  font-size: 1rem !important;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.pagination-controls button:not(:disabled) {
+  color: var(--primary-blue) !important;
+}
+
+.pagination-controls button:hover:not(:disabled) {
+  background: var(--teal) !important;
+  color: #fff !important;
+  border-color: var(--teal) !important;
+}
+
+.pagination-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #e9ecef !important;
+  color: #888 !important;
+  border-color: #e0e0e0 !important;
+}
+
+.table-action-group .action-btn {
+  margin: 0 !important;
+}
+
+@media (max-width: 900px) {
+  .appointments-list-container {
+    padding: 1rem;
+  }
+  .appointments-table th,
+  .appointments-table td {
+    padding: 0.45rem 0.5rem; /* 10% less than previous 0.5rem */
+    font-size: 0.95rem;
+  }
+}
+@media (max-width: 600px) {
+  .appointments-list-container {
+    padding: 0.5rem;
+  }
+  .appointments-table th,
+  .appointments-table td {
+    padding: 0.27rem 0.2rem; /* 10% less than previous 0.3rem */
+    font-size: 0.9rem;
+  }
 }
 </style>
