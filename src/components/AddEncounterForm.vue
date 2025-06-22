@@ -166,12 +166,12 @@ export default defineComponent({
 
     const loadInitialData = async () => {
       try {
-        const authToken = store.state.token; // Renamed from token
+        const authToken = store.getters.getToken; // Use getter
         if (!authToken) {
           errorMessage.value = 'Authentication token not found.';
           return;
         }
-        availableAppointments.value = await fetchAppointments(authToken); // Use renamed variable
+        availableAppointments.value = await fetchAppointments(); // Remove token argument
         if (props.targetAppointmentId) {
             handleAppointmentSelection(); // Pre-fill details if targetAppointmentId is provided
         }
@@ -188,7 +188,7 @@ export default defineComponent({
     };
 
     const loadVitalsForEditing = async (encounterId: string | number) => {
-        const authToken = store.state.token; // Renamed from token
+        const authToken = store.getters.getToken; // Use getter
         if (authToken && encounterId) {
             const existingVitals = await fetchVitalsForEncounter(encounterId, authToken); // Use renamed variable
             if (existingVitals) {
@@ -248,11 +248,6 @@ export default defineComponent({
 
     const handleSubmit = async () => {
       errorMessage.value = '';
-      const submitToken = store.state.token; // Renamed from token
-      if (!submitToken) { // Use renamed variable
-        errorMessage.value = 'User not authenticated.';
-        return;
-      }
       // --- Start Validation ---
       if (!encounter.value.appointment_id) {
         errorMessage.value = 'Please link this encounter to an appointment.';
@@ -298,31 +293,62 @@ export default defineComponent({
       }
       // --- End Validation ---
 
-      const token = store.state.token;
-      if (!token) {
-        errorMessage.value = 'User not authenticated.';
-        return;
-      }
       if (!encounter.value.appointment_id) {
           errorMessage.value = 'Please link this encounter to an appointment.';
           return;
       }
-      // Derive patient_id and doctor_id from the selected appointment one last time
-      const finalAppointmentDetails = availableAppointments.value.find(a => a.id === encounter.value.appointment_id);
-      if (!finalAppointmentDetails) {
-          errorMessage.value = 'Selected appointment details not found.';
-          return;
+      // Always derive patient_id and doctor_id from the selected appointment just before payload construction
+      const selectedAppt = availableAppointments.value.find(a => a.id == encounter.value.appointment_id);
+      if (!selectedAppt) {
+        errorMessage.value = 'Selected appointment details not found.';
+        return;
       }
-      encounter.value.patient_id = finalAppointmentDetails.patient_id;
-      encounter.value.doctor_id = finalAppointmentDetails.doctor_id;
-      // encounter_date is already set by handleAppointmentSelection or user input
+      // Force as integer (or string if backend expects stringified IDs)
+      encounter.value.patient_id = Number(selectedAppt.patient_id) || selectedAppt.patient_id;
+      encounter.value.doctor_id = Number(selectedAppt.doctor_id) || selectedAppt.doctor_id;
+
+      // --- Map frontend fields to backend fields ---
+      // Ensure required fields are present and valid
+      if (!encounter.value.patient_id) {
+        errorMessage.value = 'Patient is required.';
+        return;
+      }
+      if (!encounter.value.doctor_id) {
+        errorMessage.value = 'Doctor is required.';
+        return;
+      }
+      // Notes is required by backend
+      if (!encounter.value.notes || !encounter.value.notes.trim()) {
+        errorMessage.value = 'General Notes is required.';
+        return;
+      }
+      const payload: Omit<Encounter, 'id' | 'created_at' | 'updated_at' | 'patient_name' | 'doctor_name'> = {
+        appointment_id: encounter.value.appointment_id,
+        patient_id: encounter.value.patient_id,
+        doctor_id: encounter.value.doctor_id,
+        encounter_date: encounter.value.encounter_date,
+        chief_complaint: encounter.value.chief_complaint || undefined,
+        presenting_illness_history: encounter.value.presenting_illness_history || undefined,
+        physical_examination: encounter.value.physical_examination || undefined,
+        diagnosis: encounter.value.diagnosis || undefined,
+        treatment_plan: encounter.value.treatment_plan || undefined,
+        notes: encounter.value.notes,
+        vitals_id: undefined, // Not sent here; handled separately
+      };
+      // Remove any fields that are undefined (optional fields)
+      Object.keys(payload).forEach(key => {
+        if ((payload as any)[key] === undefined || (payload as any)[key] === '') {
+          delete (payload as any)[key];
+        }
+      });
+      // --- End mapping ---
 
       try {
         let savedEncounter: Encounter | undefined;
         if (isEditing.value && props.existingEncounter?.id) {
-          savedEncounter = await updateEncounter(props.existingEncounter.id, encounter.value, submitToken); // Use renamed variable
+          savedEncounter = await updateEncounter(props.existingEncounter.id, payload); // Remove token argument
         } else {
-          savedEncounter = await createEncounter(encounter.value, submitToken); // Use renamed variable
+          savedEncounter = await createEncounter(payload); // Remove token argument
         }
 
         if (savedEncounter && savedEncounter.id) {
@@ -377,9 +403,13 @@ export default defineComponent({
   justify-content: center;
   z-index: 2000;
 }
+html.dark .add-encounter-form-modal {
+  background: rgba(20, 24, 31, 0.85);
+}
+
 .modal-content {
-  background: #fff;
-  color: #111;
+  background: var(--white);
+  color: var(--text-dark);
   padding: 2rem 2.5rem;
   border-radius: 12px;
   width: 90%;
@@ -389,14 +419,19 @@ export default defineComponent({
   display: flex;
   flex-direction: column;
 }
-.modal-title {
-  color: var(--primary-blue);
-  font-weight: 600;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-size: 1.6rem;
-  flex-shrink: 0;
+html.dark .modal-content {
+  background: var(--primary-blue);
+  color: var(--text-contrast);
+  box-shadow: 0 8px 32px rgba(30,58,92,0.45);
 }
+
+.modal-title, .section-title {
+  color: var(--primary-blue);
+}
+html.dark .modal-title, html.dark .section-title {
+  color: var(--teal);
+}
+
 form {
     overflow-y: auto; /* Allow form content to scroll */
     padding-right: 1rem; /* Space for scrollbar */
@@ -419,6 +454,10 @@ form {
   color: #333;
   font-size: 0.9rem;
 }
+html.dark .form-group label {
+  color: var(--text-contrast);
+}
+
 .form-group input,
 .form-group select,
 .form-group textarea {
@@ -428,7 +467,17 @@ form {
   font-size: 0.95rem;
   width: 100%;
   box-sizing: border-box;
+  background: var(--white);
+  color: var(--text-dark);
 }
+html.dark .form-group input,
+html.dark .form-group select,
+html.dark .form-group textarea {
+  background: #23272f;
+  color: var(--text-contrast);
+  border-color: #374151;
+}
+
 .form-group input:disabled {
     background-color: #e9ecef;
     opacity: 0.7;
@@ -465,15 +514,17 @@ form {
   background: var(--primary-blue);
   color: var(--white);
 }
-.submit-btn:hover {
+html.dark .submit-btn {
   background: var(--teal);
+  color: var(--text-contrast-inverse);
 }
 .cancel-btn {
   background: #ccc;
   color: #333;
 }
-.cancel-btn:hover {
-  background: #b0b0b0;
+html.dark .cancel-btn {
+  background: #374151;
+  color: var(--text-contrast);
 }
 .error-message {
   color: red;

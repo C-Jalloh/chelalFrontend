@@ -79,7 +79,7 @@
 import { defineComponent, ref, watch, onMounted, onUnmounted } from 'vue';
 import { getPatientById, updatePatient, deletePatient, type Patient } from '@/services/patientService';
 import { updatePatientOffline, deletePatientOffline } from '@/services/offlineService';
-import ConfirmDeleteModal from './ConfirmDeleteModal.vue';
+import ConfirmDeleteModal from './Modals/ConfirmDeleteModal.vue';
 import store from '@/store';
 
 export default defineComponent({

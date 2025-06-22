@@ -3,11 +3,14 @@ import store from './store';
 
 // Views
 import LoginView from '../src/views/LoginView.vue';
+import LandingPage from './views/LandingPage.vue';
+import RegisterView from './views/RegisterView.vue';
 
 const routes: Array<RouteRecordRaw> = [
   {
     path: '/',
-    redirect: '/patients',
+    name: 'Landing',
+    component: LandingPage,
   },
   {
     path: '/login',
@@ -15,25 +18,46 @@ const routes: Array<RouteRecordRaw> = [
     component: LoginView,
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: RegisterView,
+  },
+  {
     path: '/app',
     component: () => import('./components/MainLayout.vue'), // Lazy load MainLayout
     meta: { requiresAuth: true },
     children: [
-      { path: 'patients', name: 'Patients', component: () => import('./views/PatientsView.vue') },
-      { path: 'appointments', name: 'Appointments', component: () => import('../src/views/AppointmentsView.vue') },
-      { path: 'encounters', name: 'Encounters', component: () => import('../src/views/EncountersView.vue') },
-      { path: 'prescriptions', name: 'Prescriptions', component: () => import('../src/views/PrescriptionsView.vue') },
-      { path: 'billing', name: 'Billing', component: () => import('@/views/BillingView.vue') },
-      // Pharmacy Routes
-      { path: 'pharmacy', name: 'PharmacyInventory', component: () => import('@/views/PharmacyInventoryView.vue') },
-      { path: 'pharmacy/purchase-orders', name: 'PurchaseOrders', component: () => import('@/views/PurchaseOrdersView.vue') },
-      { path: 'pharmacy/grns', name: 'GoodsReceivedNotes', component: () => import('@/views/GoodsReceivedNotesView.vue') },
-      { path: 'pharmacy/dispensing', name: 'DispensingLog', component: () => import('@/views/DispensingLogView.vue') },
-      { path: 'pharmacy/adjustments', name: 'StockAdjustments', component: () => import('@/views/StockAdjustmentsView.vue') },
-      { path: 'service-catalog', name: 'ServiceCatalog', component: () => import('./views/ServiceCatalogView.vue') },
-      { path: 'audit-logs', name: 'AuditLogs', component: () => import('./views/AuditLogsView.vue') }, // Use relative path for AuditLogsView.vue
-      
-      { path: '', redirect: 'patients' } // Default child route for /app
+      { path: 'patients', name: 'Patients', component: () => import('./views/PatientsView.vue'), meta: { roles: ['Admin', 'Receptionist', 'Doctor', 'Nurse'] } },
+      { path: 'appointments', name: 'Appointments', component: () => import('../src/views/AppointmentsView.vue'), meta: { roles: ['Admin', 'Receptionist', 'Doctor', 'Nurse'] } },
+      { path: 'encounters', name: 'Encounters', component: () => import('../src/views/EncountersView.vue'), meta: { roles: ['Admin', 'Doctor', 'Nurse'] } },
+      { path: 'prescriptions', name: 'Prescriptions', component: () => import('../src/views/PrescriptionsView.vue'), meta: { roles: ['Admin', 'Doctor', 'Nurse'] } },
+      { path: 'billing', name: 'Billing', component: () => import('./views/BillingView.vue'), meta: { roles: ['Admin', 'Receptionist'] } },
+      { path: 'pharmacy', name: 'PharmacyInventory', component: () => import('./views/PharmacyInventoryView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'pharmacy/purchase-orders', name: 'PurchaseOrders', component: () => import('./views/PurchaseOrdersView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'pharmacy/grns', name: 'GoodsReceivedNotes', component: () => import('./views/GoodsReceivedNotesView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'pharmacy/dispensing', name: 'DispensingLog', component: () => import('./views/DispensingLogView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'pharmacy/adjustments', name: 'StockAdjustments', component: () => import('./views/StockAdjustmentsView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'service-catalog', name: 'ServiceCatalog', component: () => import('./views/ServiceCatalogView.vue'), meta: { roles: ['Admin'] } },
+      { path: 'audit-logs', name: 'AuditLogs', component: () => import('./views/ComingSoon.vue'), meta: { roles: ['Admin'] } },
+      { path: 'beds', name: 'Beds', component: () => import('./views/BedsView.vue'), meta: { roles: ['Admin', 'Receptionist'] } },
+      { path: 'suppliers', name: 'Suppliers', component: () => import('./views/SuppliersView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'medication-categories', name: 'MedicationCategories', component: () => import('./views/MedicationCategoriesView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'medications', name: 'Medications', component: () => import('./views/MedicationServiceView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'stock-batches', name: 'StockBatches', component: () => import('./views/StockBatchesView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'purchase-order-items', name: 'PurchaseOrderItems', component: () => import('./views/PurchaseOrderItemsView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'goods-received-notes-items', name: 'GoodsReceivedNotesItems', component: () => import('./views/GoodsReceivedNotesItemsView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'sessions', name: 'Sessions', component: () => import('./views/SessionsView.vue'), meta: { roles: ['Admin'] } },
+      { path: 'tasks', name: 'Tasks', component: () => import('./views/TasksView.vue'), meta: { roles: ['Admin', 'Doctor'] } },
+      { path: 'insurance-details', name: 'InsuranceDetails', component: () => import('./views/InsuranceDetailsView.vue'), meta: { roles: ['Admin', 'Receptionist'] } },
+      { path: 'stock-adjustments-service', name: 'StockAdjustmentsService', component: () => import('./views/StockAdjustmentsServiceView.vue'), meta: { roles: ['Admin', 'Pharmacist'] } },
+      { path: 'note-templates', name: 'NoteTemplates', component: () => import('./views/NoteTemplatesView.vue'), meta: { roles: ['Admin', 'Doctor'] } },
+      { path: 'appointment-notifications', name: 'AppointmentNotifications', component: () => import('./views/AppointmentNotificationsView.vue'), meta: { roles: ['Admin', 'Receptionist', 'Doctor'] } },
+      { path: 'access-denied', name: 'AccessDenied', component: () => import('./views/AccessDeniedView.vue') },
+      { path: 'dashboard', name: 'Dashboard', component: () => import('./views/DashboardView.vue') },
+      { path: 'notifications', name: 'Notifications', component: () => import('./views/NotificationsView.vue'), meta: { requiresAuth: true } },
+      { path: 'profile', name: 'Profile', component: () => import('./views/ProfileView.vue'), meta: { requiresAuth: true } },
+      { path: 'settings', name: 'Settings', component: () => import('./views/SettingsView.vue'), meta: { requiresAuth: true } },
+      { path: '', redirect: 'dashboard' } // Default child route for /app
     ],
   },
   // Catch-all for 404 - redirect to login
@@ -50,13 +74,20 @@ const router = createRouter({
   routes,
 });
 
-router.beforeEach(async (to, _from, next) => { // Make the guard async
+router.beforeEach(async (to, _from, next) => {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth);
-  const isAuthenticated = store.getters.isAuthenticated; // Uses isTokenExpired
+  const allowedRoles = to.meta && to.meta.roles ? to.meta.roles : null;
+  const isAuthenticated = store.getters.isAuthenticated;
+  const userRole = store.getters.getUserRole;
 
   if (requiresAuth) {
     if (isAuthenticated) {
-      next(); // Token is valid and user is authenticated
+      // If route has role restrictions, check them
+      if (Array.isArray(allowedRoles) && (!userRole || !allowedRoles.includes(userRole))) {
+        next('/access-denied');
+      } else {
+        next();
+      }
     } else {
       // Token is missing or expired, try to refresh
       const refreshToken = store.getters.getRefreshToken;

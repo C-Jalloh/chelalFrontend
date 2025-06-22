@@ -34,14 +34,29 @@ export const fetchAppointments = async (): Promise<Appointment[]> => {
   return callApiWithAuthRetry(async () => {
     const token = store.getters.getToken;
     if (!token) throw new Error('No token available for API call');
+    // Fetch appointments
     const response = await axios.get(API_URL, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    // Map backend fields to frontend fields
-    return response.data.map((appt: any) => ({
+    const appointments = response.data.map((appt: any) => ({
       ...appt,
       appointment_date: appt.date,
       appointment_time: appt.time,
+      patient_id: appt.patient, // Ensure patient_id is always present
+      doctor_id: appt.doctor,   // Ensure doctor_id is always present
+    }));
+    // Fetch patients and users for denormalization
+    const [patients, users] = await Promise.all([
+      axios.get('http://localhost:8000/api/patients/', { headers: { Authorization: `Bearer ${token}` } }),
+      axios.get('http://localhost:8000/api/users/', { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+    const patientMap = new Map(patients.data.map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+    const doctorMap = new Map(users.data.filter((u: any) => u.role && (u.role.name === 'Doctor' || u.role === 'Doctor')).map((u: any) => [u.id, `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || u.id]));
+    // Attach names to each appointment
+    return appointments.map((appt: any) => ({
+      ...appt,
+      patient_name: patientMap.get(appt.patient) || appt.patient,
+      doctor_name: doctorMap.get(appt.doctor) || appt.doctor
     }));
   });
 };
@@ -66,7 +81,16 @@ export const createAppointment = async (appointment: Omit<Appointment, 'id'>): P
   return callApiWithAuthRetry(async () => {
     const token = store.getters.getToken;
     if (!token) throw new Error('No token available for API call');
-    const response = await axios.post(API_URL, appointment, {
+    // Map frontend fields to backend fields
+    const backendPayload = {
+      patient: appointment.patient_id,
+      doctor: appointment.doctor_id,
+      date: appointment.appointment_date,
+      time: appointment.appointment_time,
+      status: appointment.status ? appointment.status.toLowerCase() : 'scheduled',
+      notes: appointment.notes,
+    };
+    const response = await axios.post(API_URL, backendPayload, {
       headers: { Authorization: `Bearer ${token}` },
     });
     return response.data;
@@ -185,3 +209,13 @@ export const updateAppointmentBackend = async (appointment: AppointmentBackend):
     return response.data;
   });
 };
+
+// New function to fetch upcoming appointments
+export async function fetchUpcomingAppointments() {
+  const token = store.getters.getToken;
+  if (!token) throw new Error('No token available for API call');
+  const res = await axios.get('/api/appointments/?upcoming=true&limit=5', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data.results || [];
+}

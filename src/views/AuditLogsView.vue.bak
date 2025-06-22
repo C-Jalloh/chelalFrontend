@@ -1,0 +1,22 @@
+<template>
+  <div>
+    <h2>Audit Logs</h2>
+    <AuditLogTable :logs="auditLogs" />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { fetchAuditLogs } from '../services/auditLogService';
+import AuditLogTable from '../components/AuditLogTable.vue';
+
+const auditLogs = ref([]);
+const token = localStorage.getItem('token') || '';
+
+const loadAuditLogs = async () => {
+  const res = await fetchAuditLogs(token);
+  auditLogs.value = res.data;
+};
+
+onMounted(loadAuditLogs);
+</script>

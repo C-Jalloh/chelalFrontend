@@ -1,17 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
 /* Legacy global styles below. Remove or refactor as you migrate to Tailwind. */
 
 /* Color palette */
 :root {
-  --primary-blue: #1e3a5c;
+  --primary-blue: #1e3a5c; /* Deep blue for both modes */
   --sidebar-blue: #22364a;
   --teal: #20bfa9;
   --white: #fff;
   --light-gray: #f8f9fa;
-  --text-dark: #1a1a1a;
+  --text-dark: #18181b;
+  --text-light: #f3f4f6;
+  --text-contrast: #111;
+  --text-contrast-inverse: #fff;
+  --error: #d32f2f;
+  --success: #388e3c;
+  --warning: #fbc02d;
+  --info: #1976d2;
 
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -27,14 +30,68 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+html.dark, :root.dark {
+  --primary-blue: #2563eb; /* Brighter blue for dark mode for contrast */
+  --sidebar-blue: #111827;
+  --teal: #20bfa9;
+  --white: #18181b;
+  --light-gray: #23272f;
+  --text-dark: #f3f4f6;
+  --text-light: #18181b;
+  --text-contrast: #fff;
+  --text-contrast-inverse: #111;
+  --error: #ff6b6b;
+  --success: #4caf50;
+  --warning: #ffd600;
+  --info: #90caf9;
+  color-scheme: dark;
+  background-color: #18181b;
+}
+
+body, #app, html {
+  color: var(--text-dark);
+  background: var(--primary-blue);
+}
+
+body.dark, #app.dark, html.dark {
+  color: var(--text-dark);
+  background: var(--primary-blue);
+}
+
+h1, h2, h3, h4, h5, h6, label, th, .section-title {
+  color: var(--text-contrast);
+}
+
+p, span, td, li, .form-group input, .form-group select, .form-group textarea {
+  color: var(--text-dark);
+}
+
 a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+  color: var(--info);
 }
 a:hover {
-  color: #535bf2;
+  color: var(--primary-blue);
 }
+
+.error-message {
+  color: var(--error);
+  background: var(--warning);
+}
+
+.success-message {
+  color: var(--success);
+}
+
+button, .btn, .submit-btn, .cancel-btn {
+  color: var(--text-contrast-inverse);
+  background: var(--primary-blue);
+}
+button:hover, .btn:hover, .submit-btn:hover {
+  background: var(--teal);
+  color: var(--text-contrast-inverse);
+}
+
+/* ...existing code... */
 
 html, body, #app {
   height: 100vh;

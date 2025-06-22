@@ -2,60 +2,48 @@
   <div class="pharmacy-view-bg">
     <div class="pharmacy-container">
       <div class="pharmacy-header">
-        <h2>Pharmacy Inventory - Medication Items</h2>
-        <button @click="openAddMedicationItemModal">Add Medication Item</button>
-      </div>
-
-      <div class="filters-container">
-        <input type="text" v-model="filterName" placeholder="Filter by Name..." class="filter-input" />
-        <select v-model="filterCategoryId" class="filter-input">
-          <option value="">All Categories</option>
-          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
-        </select>
-        <select v-model="filterSupplierId" class="filter-input">
-          <option value="">All Suppliers</option>
-          <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
-        </select>
-        <button @click="clearFilters" class="clear-filters-btn">Clear Filters</button>
+        <h2><svg class="icon-header" style="width:1.3em;height:1.3em;margin-right:0.5em;vertical-align:middle;color:var(--primary-blue);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7v4a2 2 0 01-2 2H7a2 2 0 01-2-2V7m14 0a2 2 0 00-2-2H7a2 2 0 00-2 2m14 0V5a2 2 0 00-2-2H7a2 2 0 00-2 2v2" /></svg>Pharmacy Inventory</h2>
+        <button @click="openAddMedicationItemModal" class="add-btn">Add Medication Item</button>
+        <div style="position:relative;width:100%;max-width:340px;">
+          <svg class="icon-search" style="position:absolute;left:0.7em;top:50%;transform:translateY(-50%);width:1.2em;height:1.2em;color:#888;pointer-events:none;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z" /></svg>
+          <input
+            v-model="filterName"
+            class="pharmacy-search"
+            type="search"
+            placeholder="Search by name, generic, or ID..."
+            aria-label="Search medications"
+            style="padding-left:2.5em;"
+          />
+        </div>
+        <div class="pharmacy-filters">
+          <select v-model="filterCategoryId">
+            <option value="">All Categories</option>
+            <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+          </select>
+          <select v-model="filterSupplierId">
+            <option value="">All Suppliers</option>
+            <option v-for="sup in suppliers" :key="sup.id" :value="sup.id">{{ sup.name }}</option>
+          </select>
+          <ClearButton @click="clearFilters">Clear</ClearButton>
+        </div>
       </div>
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
       <div class="medication-table-wrapper">
-        <table class="medication-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Category</th>
-              <th>Form</th>
-              <th>Strength</th>
-              <th>Stock Level</th>
-              <th>Reorder Level</th>
-              <th>Supplier</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td>Loading medication items...</td></tr>
-            <tr v-else-if="filteredMedicationItems.length === 0"><td>No medication items match your filters or none exist.</td></tr>
-            <tr v-for="item in filteredMedicationItems" :key="item.id">
-              <td>{{ item.id }}</td>
-              <td>{{ item.name }}</td>
-              <td>{{ item.category_name }}</td>
-              <td>{{ item.form }}</td>
-              <td>{{ item.strength }}</td>
-              <td>{{ item.current_stock_level }}</td>
-              <td>{{ item.reorder_level }}</td>
-              <td>{{ item.supplier_name || 'N/A' }}</td>
-              <td>
-                <button @click="viewMedicationItem(item)" class="action-btn view-btn">View</button>
-                <button @click="editMedicationItem(item)" class="action-btn edit-btn">Edit</button>
-                <button @click="confirmDelete(item.id)" class="action-btn delete-btn">Delete</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- TODO: Standardize table to use BaseTable for visual consistency -->
+        <BaseTable
+          :columns="tableColumns"
+          :data="filteredMedicationItems"
+          :idKey="'id'"
+          :pageSize="10"
+          @edit="editMedicationItem"
+          @delete="row => confirmDelete(row.id)"
+        >
+          <template #actions="{ row }">
+            <button @click.stop="viewMedicationItem(row)" class="action-btn view-btn">View</button>
+          </template>
+        </BaseTable>
       </div>
 
       <!-- Modals for Add/Edit/View Medication Item will be added here -->
@@ -84,12 +72,14 @@ import {
   fetchSuppliers, type Supplier
 } from '@/services/pharmacyService';
 import store from '@/store';
-import AddMedicationItemModal from '../components/AddMedicationItemModal.vue';
-import MedicationItemDetailModal from '../components/MedicationItemDetailModal.vue';
+import AddMedicationItemModal from '../components/Modals/AddMedicationItemModal.vue';
+import MedicationItemDetailModal from '../components/Modals/MedicationItemDetailModal.vue';
+import BaseTable from '@/components/BaseTable.vue';
+import ClearButton from '@/components/buttons/ClearButton.vue';
 
 export default defineComponent({
   name: 'PharmacyInventoryView',
-  components: { AddMedicationItemModal, MedicationItemDetailModal },
+  components: { AddMedicationItemModal, MedicationItemDetailModal, BaseTable, ClearButton },
   setup() {
     const medicationItems = ref<MedicationItem[]>([]);
     const categories = ref<MedicationCategory[]>([]); // For filter dropdown
@@ -104,6 +94,17 @@ export default defineComponent({
     const filterName = ref('');
     const filterCategoryId = ref<string | number>('');
     const filterSupplierId = ref<string | number>('');
+
+    const tableColumns = [
+      { key: 'id', label: 'ID', sortable: true },
+      { key: 'name', label: 'Name', sortable: true },
+      { key: 'category_name', label: 'Category', sortable: true },
+      { key: 'form', label: 'Form', sortable: true },
+      { key: 'strength', label: 'Strength', sortable: false },
+      { key: 'current_stock_level', label: 'Stock Level', sortable: true },
+      { key: 'reorder_level', label: 'Reorder Level', sortable: true },
+      { key: 'supplier_name', label: 'Supplier', sortable: false },
+    ];
 
     const loadMedicationItems = async () => {
       loading.value = true;
@@ -122,16 +123,24 @@ export default defineComponent({
       }
     };
 
+    const DUMMY_CATEGORIES = [
+      { id: 1, name: 'Analgesics', description: 'Pain relievers' },
+      { id: 2, name: 'Antibiotics', description: 'Antibacterial drugs' },
+      { id: 3, name: 'Antipyretics', description: 'Fever reducers' },
+      { id: 4, name: 'Antimalarials', description: 'Malaria treatment' },
+      { id: 5, name: 'Vitamins', description: 'Nutritional supplements' },
+      { id: 6, name: 'Antihypertensives', description: 'Blood pressure control' },
+    ];
+
     const loadFilterDropdownData = async () => {
-        try {
-            const token = store.state.token;
-            // Assuming token might be needed, though dummy services might not use it
-            categories.value = await fetchMedicationCategories(token);
-            suppliers.value = await fetchSuppliers(token);
-        } catch (error: any) {
-            console.error('Failed to load filter dropdown data:', error);
-            // Optionally set an error message for dropdown loading failures
-        }
+      // Always use dummy categories for demo
+      categories.value = DUMMY_CATEGORIES;
+      try {
+        suppliers.value = await fetchSuppliers();
+      } catch (error) {
+        suppliers.value = [];
+        console.error('Failed to load suppliers:', error);
+      }
     };
 
     const filteredMedicationItems = computed(() => {
@@ -187,7 +196,7 @@ export default defineComponent({
         try {
           const token = store.state.token;
           if (!token) { alert('User not authenticated.'); return; }
-          await deleteMedicationItem(itemId, token);
+          await deleteMedicationItem(itemId);
           refreshItems();
         } catch (error: any) {
           alert(`Failed to delete item: ${error.message || 'Unknown error'}`);
@@ -217,6 +226,7 @@ export default defineComponent({
       closeAddEditModal,
       itemToView,
       closeDetailModal,
+      tableColumns,
       // Filter related
       filterName,
       filterCategoryId,
@@ -229,7 +239,7 @@ export default defineComponent({
 
 <style scoped>
 .pharmacy-view-bg {
-  background: #eaf4fb; /* Consistent blueish white */
+  background: var(--primary-blue); /* Changed from #eaf4fb to primary color */
   color: #111; /* Consistent black text */
   min-height: 100vh;
   width: 100%;
@@ -246,64 +256,94 @@ export default defineComponent({
 
 .pharmacy-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
 
 .pharmacy-header h2 {
+  flex: 1 1 100%;
+  margin: 0 0 0.5rem 0;
+  min-width: 120px;
+  word-break: break-word;
   color: var(--primary-blue);
-  margin: 0;
   font-size: 1.8rem;
+  display: flex;
+  align-items: center;
 }
 
-.pharmacy-header button {
+.pharmacy-header .add-btn {
+  height: 2.4rem;
+  line-height: 2.3rem;
+  padding: 0 1.4rem;
+  font-size: 0.98rem;
+  border-radius: 6px;
   background: var(--primary-blue);
   color: var(--white);
   border: none;
-  padding: 0.6rem 1.2rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: background-color 0.2s;
-}
-
-.pharmacy-header button:hover {
-  background: var(--teal);
-}
-
-.filters-container {
+  box-shadow: 0 2px 8px rgba(30,58,92,0.07);
+  font-weight: 600;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.8rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background-color: #f8f9fa;
+  align-items: center;
+  transition: background 0.18s, box-shadow 0.18s;
+  margin-right: 0.5rem;
+  box-sizing: border-box;
+}
+
+.pharmacy-header .pharmacy-search {
+  height: 2.4rem;
+  line-height: 2.3rem;
+  background: #fff !important;
+  color: #111 !important;
+  border: 1.5px solid var(--primary-blue, #2563eb);
   border-radius: 6px;
+  padding: 0 2.5rem 0 2.2rem;
+  font-size: 1.08rem;
+  min-width: 220px !important;
+  max-width: 340px !important;
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(30,58,92,0.07);
+  transition: border 0.2s, box-shadow 0.2s;
 }
 
-.filter-input {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  flex-grow: 1;
-  min-width: 180px; /* Min width for filter inputs */
+.pharmacy-header .pharmacy-search:focus {
+  outline: none;
+  border-color: var(--teal, #008080);
+  box-shadow: 0 0 0 2px rgba(0,128,128,0.13);
 }
 
-.clear-filters-btn {
-  padding: 0.5rem 1rem;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-  flex-shrink: 0;
+.pharmacy-header .pharmacy-search::placeholder {
+  color: #888;
+  opacity: 1;
 }
 
-.clear-filters-btn:hover {
-  background-color: #5a6268;
+.pharmacy-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: auto;
+}
+
+.pharmacy-filters select {
+  flex: 1 1 180px;
+  max-width: 200px;
+  min-width: 120px;
+  height: 2.4rem;
+  line-height: 2.3rem;
+  padding: 0 1.1rem 0 0.8rem;
+  border-radius: 6px;
+  border: 1.5px solid var(--primary-blue, #2563eb);
+  background: #fff;
+  color: #222;
+  font-size: 1.08rem;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(30,58,92,0.07);
+  transition: border 0.2s, box-shadow 0.2s;
+  display: flex;
+  align-items: center;
 }
 
 .medication-table-wrapper {

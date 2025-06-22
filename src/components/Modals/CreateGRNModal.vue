@@ -1,0 +1,290 @@
+<template>
+  <BaseAddEditModal
+    :show="true"
+    @close="$emit('close')"
+    :error-message="errorMessage"
+    :loading="false"
+    @submit="handleSubmit"
+  >
+    <template #title>
+      {{ formTitle }}
+    </template>
+    <template #default>
+      <form @submit.prevent="handleSubmit" class="grn-form">
+        <div class="form-scrollable-content">
+          <div class="form-grid top-grid">
+            <div class="form-group">
+              <label for="supplier">Supplier *</label>
+              <select id="supplier" v-model="grn.supplier_id" @change="handleSupplierChange" required>
+                <option disabled value="">Select Supplier</option>
+                <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.name }}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="po">Link to Purchase Order (Optional)</label>
+              <select id="po" v-model="grn.purchase_order_id" @change="handlePOSelection">
+                <option value="">None (Direct GRN)</option>
+                <option v-for="order in purchaseOrdersForSupplier" :key="order.id" :value="order.id">
+                  PO #{{ order.id }} - {{ order.order_date }}
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="grn_date">GRN Date *</label>
+              <input type="date" id="grn_date" v-model="grn.grn_date" required />
+            </div>
+            <div class="form-group">
+              <label for="invoice_number">Supplier Invoice No.</label>
+              <input type="text" id="invoice_number" v-model="grn.invoice_number" />
+            </div>
+          </div>
+          <h4 class="section-title">Received Items</h4>
+          <div v-for="(item, index) in grn.items" :key="index" class="grn-item-row">
+            <div class="form-group item-medication">
+              <label :for="`medication-${index}`">Medication Item *</label>
+              <select :id="`medication-${index}`" v-model="item.medication_item_id" required :disabled="!!grn.purchase_order_id">
+                <option disabled value="">Select Medication</option>
+                <option v-for="med in medicationItems" :key="med.id" :value="med.id">
+                  {{ med.name }} ({{ med.strength || 'N/A' }})
+                </option>
+              </select>
+            </div>
+            <div class="form-group item-batch">
+              <label :for="`batch-${index}`">Batch Number *</label>
+              <input type="text" :id="`batch-${index}`" v-model="item.batch_number" required />
+            </div>
+            <div class="form-group item-expiry">
+              <label :for="`expiry-${index}`">Expiry Date *</label>
+              <input type="date" :id="`expiry-${index}`" v-model="item.expiry_date" required />
+            </div>
+            <div class="form-group item-qty">
+              <label :for="`qty-${index}`">Qty Received *</label>
+              <input type="number" :id="`qty-${index}`" v-model.number="item.quantity_received" min="1" required @input="updateItemTotalCost(index)"/>
+            </div>
+            <div class="form-group item-cost">
+              <label :for="`cost-${index}`">Unit Cost *</label>
+              <input type="number" step="0.01" :id="`cost-${index}`" v-model.number="item.unit_cost" min="0" required @input="updateItemTotalCost(index)"/>
+            </div>
+            <div class="form-group item-total">
+              <label>Line Total</label>
+              <input type="text" :value="formatCurrency(item.total_cost)" disabled />
+            </div>
+            <button type="button" @click="removeGRNItem(index)" class="remove-item-btn" :disabled="!!grn.purchase_order_id && grn.items.length === 1"> &times;</button>
+          </div>
+          <button type="button" @click="addGRNItem" class="add-item-btn" :disabled="!!grn.purchase_order_id">+ Add Item Manually</button>
+          <div class="form-group notes-group">
+            <label for="notes">Notes</label>
+            <textarea id="notes" v-model="grn.notes" rows="2"></textarea>
+          </div>
+        </div>
+      </form>
+    </template>
+    <template #submit-label>
+      Create GRN
+    </template>
+  </BaseAddEditModal>
+</template>
+
+<script lang="ts">
+import { defineComponent, ref, onMounted, type PropType } from 'vue';
+import {
+  type GoodsReceivedNote, type GRNItem, type MedicationItem, type Supplier, type PurchaseOrder, // Added type keyword
+  createGRN, 
+  fetchSuppliers, fetchMedicationItems, fetchPurchaseOrders, getPurchaseOrderById
+} from '@/services/pharmacyService';
+import store from '@/store';
+import BaseAddEditModal from './BaseAddEditModal.vue';
+
+interface GRNItemFormData extends Omit<GRNItem, 'id' | 'grn_id' | 'medication_name' | 'total_cost'> {
+  unit_cost: number;
+  total_cost?: number; // Calculated client-side
+}
+
+interface GRNFormData extends Omit<GoodsReceivedNote, 'id' | 'created_at' | 'updated_at' | 'supplier_name' | 'received_by_user_name' | 'items'> {
+  items: GRNItemFormData[];
+}
+
+export default defineComponent({
+  name: 'CreateGRNModal',
+  props: {
+    targetPOId: { // To pre-fill from a specific PO
+      type: [String, Number] as PropType<string | number | null>,
+      default: null,
+    },
+  },
+  emits: ['close', 'grnCreated'],
+  components: { BaseAddEditModal },
+  setup(props, { emit }) {
+    const grn = ref<GRNFormData>({
+      supplier_id: '',
+      purchase_order_id: props.targetPOId || '',
+      grn_date: new Date().toISOString().split('T')[0],
+      invoice_number: '',
+      notes: '',
+      items: [],
+      // received_by_user_id will be set from store or backend
+    });
+
+    const suppliers = ref<Supplier[]>([]);
+    const allPurchaseOrders = ref<PurchaseOrder[]>([]);
+    const purchaseOrdersForSupplier = ref<PurchaseOrder[]>([]);
+    const medicationItems = ref<MedicationItem[]>([]); // For manual item selection
+    const errorMessage = ref('');
+    const formTitle = ref('Create Goods Received Note');
+
+    const formatCurrency = (amount: number | undefined) => {
+      if (amount === undefined || amount === null) return '0.00';
+      return amount.toFixed(2);
+    };
+
+    const loadInitialData = async () => {
+      try {
+        const token = store.state.token;
+        if (!token) { errorMessage.value = 'Auth token missing.'; return; }
+        suppliers.value = await fetchSuppliers(token);
+        allPurchaseOrders.value = await fetchPurchaseOrders(token);
+        medicationItems.value = await fetchMedicationItems(token);
+
+        if (props.targetPOId) {
+            const po = await getPurchaseOrderById(props.targetPOId, token);
+            if (po) {
+                grn.value.supplier_id = po.supplier_id;
+                handleSupplierChange(); // Filter POs for this supplier
+                grn.value.purchase_order_id = po.id; // Ensure it's selected
+                handlePOSelection(); // Pre-fill items
+            }
+        }
+      } catch (error: any) { errorMessage.value = `Failed to load initial data: ${error.message}`; }
+    };
+
+    const handleSupplierChange = () => {
+        if(grn.value.supplier_id) {
+            purchaseOrdersForSupplier.value = allPurchaseOrders.value.filter(po => po.supplier_id === grn.value.supplier_id && (po.status === 'Ordered' || po.status === 'Partially Received'));
+        } else {
+            purchaseOrdersForSupplier.value = [];
+        }
+        // If current PO doesn't belong to new supplier, reset it
+        if (grn.value.purchase_order_id && !purchaseOrdersForSupplier.value.find(po => po.id === grn.value.purchase_order_id)) {
+            grn.value.purchase_order_id = '';
+            grn.value.items = [];
+            addGRNItem(); // Add one empty item if PO is cleared
+        }
+    };
+
+    const handlePOSelection = async () => {
+      if (grn.value.purchase_order_id) {
+        const token = store.state.token;
+        if (!token) { errorMessage.value = 'Auth token missing.'; return; }
+        const selectedPO = await getPurchaseOrderById(grn.value.purchase_order_id, token);
+        if (selectedPO) {
+          grn.value.supplier_id = selectedPO.supplier_id; // Ensure supplier is synced
+          grn.value.items = selectedPO.items.map(poItem => ({
+            medication_item_id: poItem.medication_item_id,
+            purchase_order_item_id: poItem.id,
+            batch_number: '', // User to fill
+            expiry_date: '', // User to fill
+            quantity_received: poItem.quantity_ordered, // Default to ordered qty
+            unit_cost: poItem.unit_cost_estimated || 0, // Default to estimated cost
+            total_cost: (poItem.quantity_ordered || 0) * (poItem.unit_cost_estimated || 0),
+          }));
+        }
+      } else {
+        grn.value.items = [];
+        addGRNItem(); // Add one empty item if no PO selected
+      }
+    };
+
+    const addGRNItem = () => {
+      grn.value.items.push({
+        medication_item_id: '',
+        batch_number: '',
+        expiry_date: '',
+        quantity_received: 1,
+        unit_cost: 0,
+        total_cost: 0,
+      });
+    };
+
+    const removeGRNItem = (index: number) => {
+      // Prevent removing all items if linked to a PO, unless it's the only one and user wants to switch to manual
+      if (grn.value.purchase_order_id && grn.value.items.length === 1) {
+          alert("Cannot remove the last item when linked to a PO. Clear PO selection to add items manually.");
+          return;
+      }
+      grn.value.items.splice(index, 1);
+    };
+
+    const updateItemTotalCost = (index: number) => {
+      const item = grn.value.items[index];
+      item.total_cost = (item.quantity_received || 0) * (item.unit_cost || 0);
+    };
+    
+    onMounted(() => {
+      loadInitialData();
+      if (grn.value.items.length === 0 && !props.targetPOId) {
+        addGRNItem(); // Start with one empty item row for new GRNs not linked to PO initially
+      }
+    });
+
+    const handleSubmit = async () => {
+      errorMessage.value = '';
+      if (!grn.value.supplier_id) { errorMessage.value = 'Please select a supplier.'; return; }
+      if (grn.value.items.length === 0) { errorMessage.value = 'Please add at least one item.'; return; }
+      for (const item of grn.value.items) {
+        if (!item.medication_item_id || !item.batch_number.trim() || !item.expiry_date || item.quantity_received <= 0 || item.unit_cost < 0) {
+          errorMessage.value = 'All items must have Medication, Batch No., Expiry Date, valid Qty Received, and valid Unit Cost.'; return;
+        }
+      }
+
+      const token = store.state.token;
+      if (!token) { errorMessage.value = 'User not authenticated.'; return; }
+
+      const grnToSubmit: GRNFormData & { received_by_user_id?: string | number } = {
+        ...grn.value,
+        received_by_user_id: store.state.user?.id || 'user_placeholder',
+      };
+
+      try {
+        const newGRN = await createGRN(grnToSubmit, token);
+        emit('grnCreated', newGRN);
+        emit('close');
+      } catch (error: any) { errorMessage.value = `Failed to create GRN: ${error.message}`; }
+    };
+
+    return {
+      grn,
+      suppliers,
+      allPurchaseOrders,
+      purchaseOrdersForSupplier,
+      medicationItems,
+      errorMessage,
+      handleSubmit,
+      formTitle,
+      addGRNItem,
+      removeGRNItem,
+      updateItemTotalCost,
+      formatCurrency,
+      handleSupplierChange,
+      handlePOSelection,
+    };
+  },
+});
+</script>
+
+<style scoped>
+.form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+.form-scrollable-content {
+  overflow-y: auto;
+  padding: 0.5rem 1rem 0.5rem 0.5rem;
+  margin-right: -1rem;
+  flex-grow: 1;
+}
+.notes-group textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+</style>

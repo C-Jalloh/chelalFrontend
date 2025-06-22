@@ -1,6 +1,8 @@
 <template>
   <div class="patients-view-bg">
-    <PatientsList />
+    <div class="patients-list-container">
+      <PatientsList />
+    </div>
   </div>
 </template>
 
@@ -14,12 +16,17 @@ export default {
 
 <style scoped>
 .patients-view-bg {
-  background: #eaf4fb; /* blueish white */
+  background: #1e3a5c;
   color: #111;
   min-height: 100vh;
   width: 100%;
-  min-width: 0;
-  margin: 0;
-  padding: 0;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+.patients-list-container {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 </style>

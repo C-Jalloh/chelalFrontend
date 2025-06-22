@@ -222,3 +222,12 @@ export const fetchServiceItems = async (_token: string): Promise<ServiceItem[]> 
         }, 100);
     });
 };
+
+export async function fetchRecentBills() {
+  const token = store.getters.getToken;
+  if (!token) throw new Error('No token available for API call');
+  const res = await axios.get('/api/bills/?limit=5', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data.results || [];
+}

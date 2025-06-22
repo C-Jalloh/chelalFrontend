@@ -39,14 +39,42 @@ export const fetchEncounters = async (filters?: { patient_id?: string, appointme
     const response = await axios.get(url, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    // Map backend fields to frontend fields for denormalized info
-    return response.data.map((enc: any) => ({
-      ...enc,
-      patient_name: enc.patient_name,
-      doctor_name: enc.doctor_name,
-      appointment_date: enc.appointment_date,
-      appointment_time: enc.appointment_time,
-    }));
+    const encounters = response.data;
+
+    // Fetch all appointments, patients, and users for denormalization
+    const [appointments, patients, users] = await Promise.all([
+      axios.get('http://localhost:8000/api/appointments/', { headers: { Authorization: `Bearer ${token}` } }),
+      axios.get('http://localhost:8000/api/patients/', { headers: { Authorization: `Bearer ${token}` } }),
+      axios.get('http://localhost:8000/api/users/', { headers: { Authorization: `Bearer ${token}` } })
+    ]);
+    const appointmentMap = new Map(appointments.data.map((a: any) => [a.id, a]));
+    const patientMap = new Map(patients.data.map((p: any) => [p.id, `${p.first_name} ${p.last_name}`]));
+    const doctorMap = new Map(users.data.filter((u: any) => u.role && (u.role.name === 'Doctor' || u.role === 'Doctor')).map((u: any) => [u.id, `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email || u.id]));
+
+    return encounters.map((enc: any) => {
+      // Try to get appointment info
+      let appt = null;
+      if (enc.appointment) appt = appointmentMap.get(enc.appointment);
+      else if (enc.appointment_id) appt = appointmentMap.get(enc.appointment_id);
+      // Use type guards to check for property existence
+      const apptPatient = appt && typeof appt === 'object' && 'patient' in appt ? appt.patient : undefined;
+      const apptDoctor = appt && typeof appt === 'object' && 'doctor' in appt ? appt.doctor : undefined;
+      const apptDate = appt && typeof appt === 'object' && 'date' in appt ? appt.date : undefined;
+      const apptTime = appt && typeof appt === 'object' && 'time' in appt ? appt.time : undefined;
+      const patientId = enc.patient || enc.patient_id || apptPatient;
+      const doctorId = enc.doctor || enc.doctor_id || apptDoctor;
+      const patientName = enc.patient_name || (patientId ? patientMap.get(patientId) : undefined);
+      const doctorName = enc.doctor_name || (doctorId ? doctorMap.get(doctorId) : undefined);
+      const appointmentDate = enc.appointment_date || apptDate;
+      const appointmentTime = enc.appointment_time || apptTime;
+      return {
+        ...enc,
+        patient_name: patientName,
+        doctor_name: doctorName,
+        appointment_date: appointmentDate,
+        appointment_time: appointmentTime,
+      };
+    });
   });
 };
 

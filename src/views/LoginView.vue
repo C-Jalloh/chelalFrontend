@@ -18,7 +18,7 @@
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-      <button type="submit" class="login-button">Login</button>
+      <LoginButton class="login-button" />
 
       <p class="dummy-credentials">Use dummy account: test@example.com / password123</p>
     </form>
@@ -29,10 +29,12 @@
 import { defineComponent, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import store from '@/store';
-import { login, getProfile } from '@/services/authService'; // Import real auth functions
+import { login, getProfile } from '@/services/authService';
+import LoginButton from '@/components/buttons/LoginButton.vue';
 
 export default defineComponent({
   name: 'LoginView',
+  components: { LoginButton },
   setup() {
     const email = ref('');
     const password = ref('');
@@ -59,7 +61,7 @@ export default defineComponent({
 
         // Redirect to the main application area
         // router.push('/patients'); // Original redirection
-        router.push('/app/patients'); // Corrected redirection to be under /app layout
+        router.push('/app/dashboard'); // Redirect to dashboard after login
 
         console.log('*** login successful ***');
       } catch (error: any) {

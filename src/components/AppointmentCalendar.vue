@@ -22,10 +22,10 @@ import { defineComponent, ref, watch, type PropType } from 'vue';
 import FullCalendar from '@fullcalendar/vue3';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import AppointmentDetailModal from './Modals/AppointmentDetailModal.vue';
+import DateAppointmentsModal from './Modals/DateAppointmentsModal.vue';
 import { type CalendarOptions, type EventClickArg } from '@fullcalendar/core';
 import { type Appointment } from '@/services/appointmentService';
-import AppointmentDetailModal from './AppointmentDetailModal.vue';
-import DateAppointmentsModal from './DateAppointmentsModal.vue';
 
 export default defineComponent({
   name: 'AppointmentCalendar',

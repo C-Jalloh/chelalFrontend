@@ -1,4 +1,5 @@
 import axios from 'axios';
+import store from '@/store';
 
 const API_URL = 'http://localhost:8000/api/users/';
 
@@ -57,3 +58,12 @@ export const resetPassword = async (userId: string | number, newPassword: string
     headers: { Authorization: `Bearer ${token}` },
   });
 };
+
+export async function fetchRecentPatients() {
+  const token = store.getters.getToken;
+  if (!token) throw new Error('No token available for API call');
+  const res = await axios.get('/api/patients/?ordering=-created_at&limit=5', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return res.data.results || [];
+}

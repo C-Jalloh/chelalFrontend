@@ -23,45 +23,15 @@
 
         <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-        <div class="appointments-table-wrapper responsive-table-wrapper">
-          <table class="appointments-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th><UserIcon class="icon-th" /> Patient</th>
-                <th><UserGroupIcon class="icon-th" /> Doctor</th>
-                <th><CalendarDaysIcon class="icon-th" /> Date</th>
-                <th><ClockIcon class="icon-th" /> Time</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading"><td colspan="7">Loading appointments...</td></tr>
-              <tr v-else-if="paginatedAppointments.length === 0"><td colspan="7">No appointments match your filters or none exist.</td></tr>
-              <tr v-for="appointment in paginatedAppointments" :key="appointment.id">
-                <td>{{ appointment.id }}</td>
-                <td>{{ appointment.patient_name || appointment.patient_id }}</td>
-                <td>{{ appointment.doctor_name || appointment.doctor_id }}</td>
-                <td>{{ appointment.appointment_date }}</td>
-                <td>{{ appointment.appointment_time }}</td>
-                <td><span :class="`status-${appointment.status.toLowerCase()}`">{{ appointment.status }}</span></td>
-                <td>
-                  <div class="table-action-group">
-                    <button @click="viewAppointment(appointment)" class="action-btn view-btn"><EyeIcon class="icon-btn" /> View</button>
-                    <button @click="editAppointment(appointment)" class="action-btn edit-btn"><PencilSquareIcon class="icon-btn" /> Edit</button>
-                    <button @click="confirmDelete(appointment.id)" class="action-btn delete-btn"><TrashIcon class="icon-btn" /> Delete</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="pagination-controls">
-          <button :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">&lt; Prev</button>
-          <span>Page {{ currentPage }} of {{ totalPages }}</span>
-          <button :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">Next &gt;</button>
-        </div>
+        <BaseTable
+          :columns="columns"
+          :data="paginatedAppointments"
+          :idKey="'id'"
+          :pageSize="pageSize"
+          @edit="editAppointment"
+          @delete="confirmDelete"
+          @row-click="viewAppointment"
+        />
       </div>
 
       <div v-if="currentViewMode === 'calendar'">
@@ -93,8 +63,9 @@ import { defineComponent, ref, onMounted, computed } from 'vue';
 import { fetchAppointments, deleteAppointment, type Appointment } from '@/services/appointmentService';
 import store from '@/store';
 import AddAppointmentForm from '../components/AddAppointmentForm.vue';
-import AppointmentDetailModal from '../components/AppointmentDetailModal.vue';
+import AppointmentDetailModal from '../components/Modals/AppointmentDetailModal.vue';
 import AppointmentCalendar from '../components/AppointmentCalendar.vue';
+import BaseTable from '../components/BaseTable.vue';
 import { CalendarDaysIcon, UserIcon, UserGroupIcon, ClockIcon, PencilSquareIcon, EyeIcon, TrashIcon } from '@heroicons/vue/24/outline';
 
 export default defineComponent({
@@ -103,6 +74,7 @@ export default defineComponent({
     AddAppointmentForm, 
     AppointmentDetailModal, 
     AppointmentCalendar,
+    BaseTable,
     CalendarDaysIcon, UserIcon, UserGroupIcon, ClockIcon, PencilSquareIcon, EyeIcon, TrashIcon
   },
   setup() {
@@ -240,6 +212,25 @@ export default defineComponent({
       if (page >= 1 && page <= totalPages.value) currentPage.value = page;
     };
 
+    // Columns for BaseTable with colored status
+    const columns = [
+      { key: 'id', label: 'ID', sortable: true },
+      { key: 'patient_name', label: 'Patient', sortable: true },
+      { key: 'doctor_name', label: 'Doctor', sortable: true },
+      { key: 'appointment_date', label: 'Date', sortable: true },
+      { key: 'appointment_time', label: 'Time', sortable: false },
+      {
+        key: 'status',
+        label: 'Status',
+        sortable: true,
+        render: (row: Appointment) => {
+          if (!row.status) return '';
+          const status = row.status.toLowerCase();
+          return `<span class="status-${status}">${row.status}</span>`;
+        }
+      }
+    ];
+
     onMounted(() => {
       loadAppointments();
     });
@@ -273,6 +264,8 @@ export default defineComponent({
       currentPage,
       totalPages,
       goToPage,
+      pageSize,
+      columns,
     };
   },
 });

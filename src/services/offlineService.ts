@@ -1,8 +1,10 @@
 import type { Patient } from './patientService';
+import type { Appointment } from './appointmentService'; // Added Appointment import
 
 const DB_NAME = 'ChelalHMS';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented DB_VERSION due to schema change
 const PATIENTS_STORE_NAME = 'patients';
+const APPOINTMENTS_STORE_NAME = 'appointments'; // Added appointments store name
 
 let db: IDBDatabase | null = null;
 
@@ -19,6 +21,10 @@ const openDatabase = (): Promise<IDBDatabase> => {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(PATIENTS_STORE_NAME)) {
         db.createObjectStore(PATIENTS_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+      // Create appointments object store if it doesn't exist
+      if (!db.objectStoreNames.contains(APPOINTMENTS_STORE_NAME)) {
+        db.createObjectStore(APPOINTMENTS_STORE_NAME, { keyPath: 'id', autoIncrement: true });
       }
     };
 
@@ -234,3 +240,96 @@ export const syncOnlinePatientsOffline = async (onlinePatients: Patient[]): Prom
     };
   });
 };
+
+// Functions for Appointment Offline Storage
+
+export const addAppointmentOffline = async (appointment: Omit<Appointment, 'id' | 'status'>): Promise<Appointment> => {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([APPOINTMENTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(APPOINTMENTS_STORE_NAME);
+    
+    const tempId = Date.now() * -1; // Using negative timestamp as a temporary ID
+    const appointmentToAdd: Appointment = { ...appointment, id: tempId, status: 'pending_add' as any }; // Explicitly type
+
+    const request = store.add(appointmentToAdd);
+
+    request.onsuccess = (_event) => {
+      resolve(appointmentToAdd);
+    };
+
+    request.onerror = (_event) => {
+      reject('Error adding appointment offline');
+    };
+  });
+};
+
+export const getAppointmentsOffline = async (): Promise<Appointment[]> => {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([APPOINTMENTS_STORE_NAME], 'readonly');
+    const store = transaction.objectStore(APPOINTMENTS_STORE_NAME);
+    const request = store.getAll();
+
+    request.onsuccess = (event) => {
+      resolve((event.target as IDBRequest).result);
+    };
+
+    request.onerror = (_event) => {
+      reject('Error getting appointments offline');
+    };
+  });
+};
+
+export const updateAppointmentOffline = async (appointment: Appointment): Promise<Appointment> => {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([APPOINTMENTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(APPOINTMENTS_STORE_NAME);
+    
+    const appointmentToUpdate = { ...appointment, status: appointment.status === 'synced' ? 'pending_update' : appointment.status };
+
+    const request = store.put(appointmentToUpdate);
+
+    request.onsuccess = () => {
+      resolve(appointmentToUpdate);
+    };
+
+    request.onerror = (_event) => {
+      reject('Error updating appointment offline');
+    };
+  });
+};
+
+export const deleteAppointmentOffline = async (appointmentId: string | number): Promise<void> => {
+  const database = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction([APPOINTMENTS_STORE_NAME], 'readwrite');
+    const store = transaction.objectStore(APPOINTMENTS_STORE_NAME);
+    
+    const getRequest = store.get(appointmentId);
+
+    getRequest.onsuccess = (event) => {
+      const appointment = (event.target as IDBRequest).result as Appointment | undefined;
+      if (appointment && appointment.status === 'pending_add') {
+        const deleteRequest = store.delete(appointmentId);
+        deleteRequest.onsuccess = () => resolve();
+        deleteRequest.onerror = (_event) => reject('Error deleting pending appointment offline');
+      } else if (appointment) {
+        const appointmentToDelete = { ...appointment, status: 'pending_delete' as any };
+        const putRequest = store.put(appointmentToDelete);
+        putRequest.onsuccess = () => resolve();
+        putRequest.onerror = (_event) => reject('Error marking appointment for deletion offline');
+      } else {
+        resolve();
+      }
+    };
+
+    getRequest.onerror = (_event) => {
+      reject('Error getting appointment for offline deletion status check');
+    };
+  });
+};
+
+// Placeholder for syncAppointmentOffline, removeAppointmentOffline, etc. for appointments if needed.
+// These would be similar to the patient ones but for the APPOINTMENTS_STORE_NAME.

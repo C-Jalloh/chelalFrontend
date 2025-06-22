@@ -1,5 +1,5 @@
 import { createStore } from 'vuex';
-import { getProfile, isTokenExpired, refreshAccessToken } from '../services/authService';
+import { getProfile, isTokenExpired, refreshAccessToken, login as loginService } from '../services/authService';
 
 interface State {
   token: string | null;
@@ -44,6 +44,14 @@ const store = createStore({
         }
       }
     },
+    async loginAndFetchUser(context: any, { email, password }: { email: string, password: string }) {
+      // Call login, then fetch user profile
+      const { token, refresh } = await loginService(email, password);
+      context.commit('setToken', token);
+      context.commit('setRefreshToken', refresh);
+      const user = await getProfile(token);
+      context.commit('setUser', user);
+    },
     async attemptRefreshAndRetry<T>(
       { commit, state }: { commit: (mutation: string, payload?: any) => void; state: State },
       requestFn: () => Promise<T>
@@ -56,7 +64,16 @@ const store = createStore({
         console.log('Attempting to refresh token...');
         const { token: newToken } = await refreshAccessToken(state.refreshToken);
         commit('setToken', newToken);
-        console.log('Token refreshed successfully.');
+        // Fetch and commit user profile after token refresh
+        try {
+          const user = await getProfile(newToken);
+          commit('setUser', user);
+        } catch (profileError) {
+          console.error('Failed to fetch user profile after token refresh:', profileError);
+          commit('logout');
+          throw new Error('Session expired. Please log in again.');
+        }
+        console.log('Token refreshed and user profile updated successfully.');
         return await requestFn();
       } catch (refreshError) {
         console.error('Failed to refresh token:', refreshError);
@@ -76,6 +93,7 @@ const store = createStore({
     getUser: (state: State) => state.user,
     getToken: (state: State) => state.token,
     getRefreshToken: (state: State) => state.refreshToken,
+    getUserRole: (state: State) => state.user?.role?.name || null,
   },
 });
 

@@ -3,48 +3,34 @@
     <div class="prescriptions-list-container">
       <div class="prescriptions-header">
         <h2>Prescriptions</h2>
-        <button @click="openAddPrescriptionModal">Add Prescription</button>
-        <!-- Filters can be added here later -->
+        <AddButton :label="'Add Prescription'" :icon="ClipboardDocumentListIcon" @click="openAddPrescriptionModal" />
       </div>
-
-      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-
-      <div class="prescriptions-table-wrapper">
-        <table class="prescriptions-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Patient</th>
-              <th>Encounter ID</th>
-              <th>Medication</th>
-              <th>Dosage</th>
-              <th>Frequency</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td>Loading prescriptions...</td></tr>
-            <tr v-else-if="prescriptions.length === 0"><td>No prescriptions found.</td></tr>
-            <tr v-for="rx in prescriptions" :key="rx.id">
-              <td>{{ rx.id }}</td>
-              <td>{{ rx.patient_name || rx.patient_id }}</td>
-              <td>{{ rx.encounter_id }}</td>
-              <td>{{ rx.medication_name }}</td>
-              <td>{{ rx.dosage }}</td>
-              <td>{{ rx.frequency }}</td>
-              <td><span :class="`status-${rx.status.toLowerCase().replace(/\s+/g, '-')}`">{{ rx.status }}</span></td>
-              <td>
-                <button @click="viewPrescription(rx)" class="action-btn view-btn">View</button>
-                <button @click="editPrescription(rx)" class="action-btn edit-btn">Edit</button>
-                <button @click="confirmDelete(rx.id)" class="action-btn delete-btn">Delete</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- Filter Bar -->
+      <div class="filters-container">
+        <input type="text" v-model="filterPatientName" placeholder="Filter by Patient..." class="filter-input" />
+        <input type="text" v-model="filterMedicationName" placeholder="Filter by Medication..." class="filter-input" />
+        <select v-model="filterStatus" class="filter-input">
+          <option value="">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Pending Dispense">Pending Dispense</option>
+          <option value="Completed">Completed</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+        <button class="clear-filters-btn" @click="clearFilters">Clear Filters</button>
       </div>
-
-      <!-- Modals for Add/Edit/View Prescription will be added here -->
+      <div v-if="errorMessage">
+        <BaseAlert type="error">{{ errorMessage }}</BaseAlert>
+      </div>
+      <!-- TODO: Standardize filter bar using shared filter components -->
+      <BaseTable
+        :columns="columns"
+        :data="filteredPrescriptions"
+        :idKey="'id'"
+        :pageSize="10"
+        @edit="editPrescription"
+        @delete="confirmDelete"
+        @row-click="viewPrescription"
+      />
       <AddPrescriptionForm 
         v-if="showAddEditModal" 
         :existing-prescription="prescriptionToEdit"
@@ -57,28 +43,39 @@
         :prescription="prescriptionToView" 
         @close="closeDetailModal" 
       />
-
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted } from 'vue';
+import { defineComponent, ref, onMounted, computed } from 'vue';
 import { fetchPrescriptions, deletePrescription, type Prescription } from '@/services/prescriptionService';
 import store from '@/store';
 import AddPrescriptionForm from '../components/AddPrescriptionForm.vue';
-import PrescriptionDetailModal from '../components/PrescriptionDetailModal.vue'; // Import the new detail modal
+import PrescriptionDetailModal from '../components/Modals/PrescriptionDetailModal.vue';
+import BaseTable from '../components/BaseTable.vue';
+import { ClipboardDocumentListIcon, UserIcon, CalendarDaysIcon, DocumentTextIcon } from '@heroicons/vue/24/outline';
+import AddButton from '../components/buttons/AddButton.vue';
+import BaseAlert from '../components/BaseAlert.vue';
 
 export default defineComponent({
   name: 'PrescriptionsView',
-  components: { AddPrescriptionForm, PrescriptionDetailModal }, // Register the component
+  components: { AddPrescriptionForm, PrescriptionDetailModal, BaseTable, ClipboardDocumentListIcon, UserIcon, CalendarDaysIcon, DocumentTextIcon, AddButton, BaseAlert },
   setup() {
     const prescriptions = ref<Prescription[]>([]);
     const loading = ref(false);
     const errorMessage = ref('');
     const showAddEditModal = ref(false);
     const prescriptionToEdit = ref<Prescription | null>(null);
-    const prescriptionToView = ref<Prescription | null>(null); // For the detail modal
+    const prescriptionToView = ref<Prescription | null>(null);
+
+    const columns = [
+      { key: 'id', label: 'ID', sortable: true, icon: ClipboardDocumentListIcon },
+      { key: 'patient_name', label: 'Patient', sortable: true, icon: UserIcon },
+      { key: 'encounter_id', label: 'Encounter ID', sortable: true, icon: CalendarDaysIcon },
+      { key: 'medication_name', label: 'Medication', sortable: true, icon: DocumentTextIcon },
+      { key: 'status', label: 'Status', sortable: true, icon: null },
+    ];
 
     const loadPrescriptions = async () => {
       loading.value = true;
@@ -90,7 +87,6 @@ export default defineComponent({
           loading.value = false;
           return;
         }
-        // TODO: Add filters if needed, e.g., { patient_id: 'some_id' }
         prescriptions.value = await fetchPrescriptions(token);
       } catch (error: any) {
         errorMessage.value = `Failed to load prescriptions: ${error.message || 'Unknown error'}`;
@@ -105,7 +101,7 @@ export default defineComponent({
     };
 
     const openAddPrescriptionModal = () => {
-      prescriptionToEdit.value = null; // Ensure it's a new prescription
+      prescriptionToEdit.value = null;
       showAddEditModal.value = true;
     };
 
@@ -123,7 +119,7 @@ export default defineComponent({
     };
 
     const editPrescription = (rx: Prescription) => {
-      prescriptionToEdit.value = { ...rx }; // Pass a copy to edit
+      prescriptionToEdit.value = { ...rx };
       showAddEditModal.value = true;
     };
 
@@ -143,14 +139,41 @@ export default defineComponent({
       }
     };
 
+    // Filter refs
+    const filterPatientName = ref('');
+    const filterMedicationName = ref('');
+    const filterStatus = ref('');
+    // Filtering logic
+    const filteredPrescriptions = computed(() => {
+      let temp = prescriptions.value as any[];
+      if (filterPatientName.value) {
+        temp = temp.filter(rx => rx.patient_name?.toLowerCase().includes(filterPatientName.value.toLowerCase()));
+      }
+      if (filterMedicationName.value) {
+        temp = temp.filter(rx => rx.medication_name?.toLowerCase().includes(filterMedicationName.value.toLowerCase()));
+      }
+      if (filterStatus.value) {
+        temp = temp.filter(rx => rx.status === filterStatus.value);
+      }
+      return temp;
+    });
+    const clearFilters = () => {
+      filterPatientName.value = '';
+      filterMedicationName.value = '';
+      filterStatus.value = '';
+    };
+
     onMounted(() => {
       loadPrescriptions();
     });
 
     return {
       prescriptions,
-      loading,
-      errorMessage,
+      filteredPrescriptions,
+      filterPatientName,
+      filterMedicationName,
+      filterStatus,
+      clearFilters,
       openAddPrescriptionModal,
       viewPrescription,
       editPrescription,
@@ -159,8 +182,10 @@ export default defineComponent({
       showAddEditModal,
       prescriptionToEdit,
       closeAddEditModal,
-      prescriptionToView, // Expose to template
-      closeDetailModal, // Expose to template
+      prescriptionToView,
+      closeDetailModal,
+      columns,
+      ClipboardDocumentListIcon, // <-- add this to expose the icon to the template
     };
   },
 });
@@ -168,7 +193,7 @@ export default defineComponent({
 
 <style scoped>
 .prescriptions-view-bg {
-  background: #eaf4fb; /* Consistent with other views */
+  background: var(--primary-blue); /* Changed from #eaf4fb to primary color */
   color: #111;
   min-height: 100vh;
   width: 100%;
@@ -211,55 +236,6 @@ export default defineComponent({
   background: var(--teal);
 }
 
-.prescriptions-table-wrapper {
-  width: 100%;
-  overflow-x: auto;
-  margin-bottom: 1rem;
-}
-
-.prescriptions-table {
-  width: 100%;
-  border-collapse: collapse;
-  color: #111;
-}
-
-.prescriptions-table th,
-.prescriptions-table td {
-  padding: 0.8rem 1rem;
-  border-bottom: 1px solid #e0e0e0;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.prescriptions-table th {
-  background: #f0f6fa;
-  color: var(--primary-blue);
-  font-weight: 600;
-}
-
-.prescriptions-table tr:nth-child(even) {
-  background-color: #f9fcff;
-}
-
-.prescriptions-table tr:hover {
-  background-color: #e6f3fb;
-}
-
-.action-btn {
-  padding: 0.3rem 0.6rem;
-  margin-right: 0.4rem;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  border: 1px solid transparent;
-}
-.view-btn { background-color: #6c757d; color: white; }
-.view-btn:hover { background-color: #5a6268; }
-.edit-btn { background-color: var(--primary-blue); color: white; }
-.edit-btn:hover { background-color: var(--teal); }
-.delete-btn { background-color: #dc3545; color: white; }
-.delete-btn:hover { background-color: #c82333; }
-
 .error-message {
   color: red;
   margin-bottom: 1rem;
@@ -267,6 +243,35 @@ export default defineComponent({
   background-color: #f8d7da;
   border: 1px solid #f5c6cb;
   border-radius: 4px;
+}
+
+/* Filter Bar Styles */
+.filters-container {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+  align-items: center;
+}
+.filter-input {
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  width: 100%;
+  max-width: 220px;
+}
+.clear-filters-btn {
+  background-color: var(--primary-blue);
+  border: none;
+  border-radius: 0.375rem;
+  color: #fff;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  transition: background-color 0.3s;
+  font-size: 1rem;
+  font-weight: 500;
+}
+.clear-filters-btn:hover {
+  background-color: #163052;
 }
 
 /* Status specific colors */

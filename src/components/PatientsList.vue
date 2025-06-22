@@ -42,52 +42,14 @@
     <div v-if="syncError" class="error-message">
       Synchronization Error: {{ syncError }}
     </div>
-    <table class="patients-table">
-      <thead>
-        <tr>
-          <th><IdentificationIcon class="icon-th" /> Unique ID</th>
-          <th><UserIcon class="icon-th" /> First Name</th>
-          <th><UserIcon class="icon-th" /> Last Name</th>
-          <th><CalendarIcon class="icon-th" /> Date of Birth</th>
-          <th><UserIcon class="icon-th" /> Gender</th>
-          <th><CheckCircleIcon class="icon-th" /> Recent Appointment</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="patient in paginatedPatients"
-          :key="patient.id"
-        >
-          <td @click="selectPatient(patient)">{{ patient.unique_id }}</td>
-          <td @click="selectPatient(patient)">{{ patient.first_name }}</td>
-          <td @click="selectPatient(patient)">{{ patient.last_name }}</td>
-          <td @click="selectPatient(patient)">{{ patient.date_of_birth }}</td>
-          <td @click="selectPatient(patient)">{{ patient.gender }}</td>
-          <td @click="selectPatient(patient)">
-            <span v-if="patient.has_recent_appointment === true" class="recent-yes">Yes</span>
-            <span v-else-if="patient.has_recent_appointment === false" class="recent-no">No</span>
-            <span v-else>-</span>
-          </td>
-          <td>
-            <button class="edit-btn" @click.stop="openEditModal(patient)">
-              <PencilSquareIcon class="icon-btn" style="width:1.1em;height:1.1em;margin-right:0.3em;" />
-              Edit
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="pagination-controls">
-      <button :disabled="currentPage === 1" @click="currentPage--">Prev</button>
-      <span>Page {{ currentPage }} of {{ totalPages }}</span>
-      <button
-        :disabled="currentPage === totalPages"
-        @click="currentPage++"
-      >
-        Next
-      </button>
-    </div>
+    <BaseTable
+      :columns="columns"
+      :data="filteredPatients"
+      :idKey="'id'"
+      :pageSize="pageSize"
+      @row-click="selectPatient"
+      @edit="openEditModal"
+    />
     <AddEditPatientModal
       v-if="showAddEditModal"
       :existing-patient="editingPatient"
@@ -107,269 +69,145 @@
 </template>
 
 <script lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, type Ref } from "vue";
-import AddEditPatientModal from "./AddEditPatientModal.vue";
+import { ref, computed, onMounted } from "vue";
+import AddEditPatientModal from "./Modals/AddEditPatientModal.vue";
 import PatientDetail from "./PatientDetail.vue";
+import BaseTable from "./BaseTable.vue";
 import { 
   UserPlusIcon, 
   MagnifyingGlassIcon, 
-  PencilSquareIcon, 
-  UserIcon, 
-  CalendarIcon, 
-  IdentificationIcon, 
-  CheckCircleIcon 
+  UserIcon
 } from '@heroicons/vue/24/outline';
-import {
-  fetchPatients,
-  type Patient,
-  createPatient,
-  updatePatient,
-  deletePatient,
-} from "@/services/patientService";
-import {
-  getPatientsOffline,
-  getPendingPatients,
-  removePatientOffline,
-  syncPatientOffline,
-  syncOnlinePatientsOffline,
-} from "@/services/offlineService";
-import store from "@/store";
+import { fetchPatients, type Patient } from '../services/patientService';
 
 export default {
-  name: "PatientsList",
-  components: { AddEditPatientModal, PatientDetail, UserPlusIcon, MagnifyingGlassIcon, PencilSquareIcon, UserIcon, CalendarIcon, IdentificationIcon, CheckCircleIcon },
+  name: 'PatientsList',
+  components: { AddEditPatientModal, PatientDetail, BaseTable, UserPlusIcon, MagnifyingGlassIcon, UserIcon },
   setup() {
-    const search = ref("");
+    const patients = ref<Patient[]>([]);
+    const search = ref('');
+    const genderFilter = ref('');
+    const ageFilter = ref('');
+    const recentAppointmentFilter = ref('');
     const showAddEditModal = ref(false);
-    const editingPatient = ref<Patient | null>(null);
-    const selectedPatient = ref<Patient | null>(null);
-    /** @type {import('@/services/patientService').Patient[]} */
-    const patients = ref([]) as Ref<Patient[]>;
-    const errorMessage = ref("");
-    const syncError = ref(""); // Added state for sync errors
-    const isOnline = ref(navigator.onLine);
-    const isSyncing = ref(false); // Added loading indicator for sync
-    const currentPage = ref(1);
+    const editingPatient = ref<Patient|null>(null);
+    const selectedPatient = ref<Patient|null>(null);
+    const errorMessage = ref('');
+    const syncError = ref('');
+    const isSyncing = ref(false);
     const pageSize = 10;
-    const genderFilter = ref("");
-    const ageFilter = ref("");
-    const recentAppointmentFilter = ref("");
 
-    const paginatedPatients = computed(() => {
-      const start = (currentPage.value - 1) * pageSize;
-      return filteredPatients.value.slice(start, start + pageSize);
-    });
-    const totalPages = computed(() => Math.ceil(filteredPatients.value.length / pageSize) || 1);
-
-    // Watch for search changes to reset to page 1
-    watch(search, () => { currentPage.value = 1; });
-
-    const syncOfflineChanges = async () => {
-      const token = store.getters.isAuthenticated ? store.state.token : null;
-      if (!token) {
-        console.error("Cannot sync offline changes: User not authenticated.");
-        syncError.value = "Synchronization failed: User not authenticated.";
-        return;
-      }
-
-      isSyncing.value = true; // Set syncing state
-      syncError.value = ""; // Clear previous sync errors
-      const pendingPatients = await getPendingPatients();
-
-      for (const patient of pendingPatients) {
-        try {
-          if (patient.status === "pending_add") {
-            // Create patient online
-            const { status, ...patientData } = patient; // Exclude status for API call
-            const newPatient = await createPatient(patientData as Patient);
-            // Update offline record with online ID and synced status
-            // Pass the temporary offline ID to syncPatientOffline
-            if (patient.id !== undefined) {
-              await syncPatientOffline(patient.id, newPatient);
-            } else {
-              console.error(
-                "Pending add patient missing temporary ID",
-                patient
-              );
-            }
-          } else if (patient.status === "pending_update") {
-            // Update patient online
-            const { status, ...patientData } = patient; // Exclude status for API call
-            const updatedPatient = await updatePatient(patientData as Patient);
-            // Mark offline record as synced
-            // Assuming updatePatient returns the full updated patient including the original ID
-            if (updatedPatient.id !== undefined) {
-              await syncPatientOffline(updatedPatient.id, updatedPatient);
-            } else {
-              console.error(
-                "Synced patient after update missing ID",
-                updatedPatient
-              );
-            }
-          } else if (patient.status === "pending_delete") {
-            // Delete patient online
-            if (patient.id) {
-              await deletePatient(patient.id as string); // Assuming API uses string IDs
-              // Remove from offline storage
-              await removePatientOffline(patient.id);
-            }
-          }
-        } catch (error: any) {
-          console.error("Error syncing patient", patient, error);
-          syncError.value = `Error syncing patient ${patient.id}: ${error.message}`; // Store specific sync error
-          // TODO: Implement better error handling for sync conflicts/failures (e.g., retry, conflict resolution)
-        }
-      }
-      // After syncing, refetch all patients from the API to ensure consistency
-      await fetchAllPatients();
-      isSyncing.value = false; // Clear syncing state
-    };
-
-    const fetchAllPatients = async () => {
-      errorMessage.value = ""; // Clear previous errors
-      try {
-        if (isOnline.value) {
-          const token = store.getters.isAuthenticated
-            ? store.state.token
-            : null;
-          if (token) {
-            console.log("Fetching patients from API..."); // Log API fetch
-            const onlinePatients = await fetchPatients();
-            console.log("Fetched patients from API:", onlinePatients); // Log fetched data
-            patients.value = onlinePatients;
-
-            // Synchronize online patients with offline storage
-            await syncOnlinePatientsOffline(onlinePatients); // Use the new function
+    const columns = [
+      { key: 'unique_id', label: 'Unique ID', sortable: true },
+      { key: 'first_name', label: 'First Name', sortable: true },
+      { key: 'last_name', label: 'Last Name', sortable: true },
+      { key: 'date_of_birth', label: 'Date of Birth', sortable: true },
+      { key: 'gender', label: 'Gender', sortable: true },
+      { key: 'has_recent_appointment', label: 'Recent Appointment', sortable: true,
+        render: (row: Patient) => {
+          if (row.has_recent_appointment === true) {
+            return '<span class="recent-yes">Yes</span>';
+          } else if (row.has_recent_appointment === false) {
+            return '<span class="recent-no">No</span>';
           } else {
-            console.log("Fetching patients from offline storage..."); // Log offline fetch
-            patients.value = await getPatientsOffline();
-            console.log("Fetched patients from offline:", patients.value); // Log fetched data
+            return '';
           }
-        } else {
-          // Fetch from offline storage if offline
-          console.log("Fetching patients from offline storage..."); // Log offline fetch
-          patients.value = await getPatientsOffline();
-          console.log("Fetched patients from offline:", patients.value); // Log fetched data
         }
-      } catch (error: any) {
-        errorMessage.value = error.message;
-        console.error("Error fetching patients:", error);
-      }
-    };
-
-    const handlePatientChange = () => {
-      // Refetch patients after add, update, or delete (will fetch based on online/offline status)
-      fetchAllPatients();
-    };
-
-    const handleOnlineStatusChange = async () => {
-      isOnline.value = navigator.onLine;
-      if (isOnline.value) {
-        console.log("App is online, attempting to sync offline changes...");
-        await syncOfflineChanges(); // Attempt to sync when coming back online
-      }
-      fetchAllPatients(); // Refresh list based on current online/offline status
-    };
-
-    onMounted(() => {
-      fetchAllPatients();
-      window.addEventListener("online", handleOnlineStatusChange);
-      window.addEventListener("offline", handleOnlineStatusChange);
-    });
-
-    onUnmounted(() => {
-      window.removeEventListener("online", handleOnlineStatusChange);
-      window.removeEventListener("offline", handleOnlineStatusChange);
-    });
+      },
+    ];
 
     const filteredPatients = computed(() => {
-      const term = search.value.toLowerCase();
-      return patients.value.filter((p) => {
-        const matchesSearch =
-          p.first_name.toLowerCase().includes(term) ||
-          p.last_name.toLowerCase().includes(term) ||
-          (p.unique_id && p.unique_id.toLowerCase().includes(term)) ||
-          (p.contact_info && p.contact_info.toLowerCase().includes(term)) ||
-          (p.address && p.address.toLowerCase().includes(term));
-        const matchesGender =
-          !genderFilter.value ||
-          (p.gender && p.gender.toLowerCase() === genderFilter.value);
-        const age = p.date_of_birth ? getAge(p.date_of_birth) : null;
-        let matchesAge = true;
-        if (ageFilter.value === "0-18") matchesAge = age !== null && age <= 18;
-        else if (ageFilter.value === "19-40") matchesAge = age !== null && age >= 19 && age <= 40;
-        else if (ageFilter.value === "41-65") matchesAge = age !== null && age >= 41 && age <= 65;
-        else if (ageFilter.value === "66+") matchesAge = age !== null && age >= 66;
-        let matchesRecent = true;
-        if (recentAppointmentFilter.value === "yes") matchesRecent = p.has_recent_appointment === true;
-        else if (recentAppointmentFilter.value === "no") matchesRecent = p.has_recent_appointment === false;
-        return matchesSearch && matchesGender && matchesAge && matchesRecent;
-      });
+      let result = [...patients.value];
+      if (search.value) {
+        const s = search.value.toLowerCase();
+        result = result.filter(p =>
+          p.first_name?.toLowerCase().includes(s) ||
+          p.last_name?.toLowerCase().includes(s) ||
+          p.unique_id?.toLowerCase().includes(s) ||
+          p.contact_info?.toLowerCase().includes(s)
+        );
+      }
+      if (genderFilter.value) {
+        result = result.filter(p => p.gender === genderFilter.value);
+      }
+      if (ageFilter.value) {
+        const now = new Date();
+        result = result.filter(p => {
+          if (!p.date_of_birth) return false;
+          const dob = new Date(p.date_of_birth);
+          const age = now.getFullYear() - dob.getFullYear();
+          if (ageFilter.value === '0-18') return age >= 0 && age <= 18;
+          if (ageFilter.value === '19-40') return age >= 19 && age <= 40;
+          if (ageFilter.value === '41-65') return age >= 41 && age <= 65;
+          if (ageFilter.value === '66+') return age >= 66;
+          return true;
+        });
+      }
+      if (recentAppointmentFilter.value) {
+        if (recentAppointmentFilter.value === 'yes') {
+          result = result.filter(p => p.has_recent_appointment === true);
+        } else if (recentAppointmentFilter.value === 'no') {
+          result = result.filter(p => p.has_recent_appointment === false);
+        }
+      }
+      return result;
     });
-
-    function getAge(dateString: string): number | null {
-      const dob = new Date(dateString);
-      if (isNaN(dob.getTime())) return null;
-      const diff = Date.now() - dob.getTime();
-      const ageDate = new Date(diff);
-      return Math.abs(ageDate.getUTCFullYear() - 1970);
-    }
-
-    function selectPatient(patient: Patient) {
-      console.log("Selecting patient:", patient);
-      selectedPatient.value = patient;
-    }
 
     function openAddModal() {
       editingPatient.value = null;
       showAddEditModal.value = true;
     }
     function openEditModal(patient: Patient) {
-      editingPatient.value = { ...patient };
+      editingPatient.value = patient;
       showAddEditModal.value = true;
     }
     function closeAddEditModal() {
       showAddEditModal.value = false;
       editingPatient.value = null;
     }
-
-    console.log("PatientsList setup return:", {
-      search,
-      showAddEditModal,
-      editingPatient,
-      selectedPatient,
-      patients,
-      filteredPatients,
-      selectPatient,
-      errorMessage,
-      syncError,
-      isOnline,
-      isSyncing,
-      handlePatientChange, // Added handlePatientChange to the return object
-    });
+    function selectPatient(patient: Patient) {
+      selectedPatient.value = patient;
+    }
+    function handlePatientChange() {
+      loadPatients();
+      closeAddEditModal();
+      selectedPatient.value = null;
+    }
+    function clearFilters() {
+      search.value = '';
+      genderFilter.value = '';
+      ageFilter.value = '';
+      recentAppointmentFilter.value = '';
+    }
+    async function loadPatients() {
+      try {
+        patients.value = await fetchPatients();
+      } catch (err) {
+        errorMessage.value = 'Failed to load patients.';
+      }
+    }
+    onMounted(loadPatients);
 
     return {
       search,
-      showAddEditModal,
-      editingPatient,
-      selectedPatient,
-      patients,
-      filteredPatients,
-      selectPatient,
-      errorMessage,
-      syncError,
-      isOnline,
-      isSyncing,
-      handlePatientChange, // Ensure handlePatientChange is returned
-      paginatedPatients,
-      currentPage,
-      totalPages,
       genderFilter,
       ageFilter,
       recentAppointmentFilter,
+      showAddEditModal,
+      editingPatient,
+      selectedPatient,
+      errorMessage,
+      syncError,
+      isSyncing,
+      columns,
+      pageSize,
+      filteredPatients,
       openAddModal,
       openEditModal,
       closeAddEditModal,
+      selectPatient,
+      handlePatientChange,
+      clearFilters,
     };
   },
 };
@@ -391,20 +229,39 @@ export default {
   box-sizing: border-box;
   vertical-align: middle;
 }
+.patients-filters {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: nowrap; /* Prevent stacking */
+  width: auto;
+}
 .patients-filters select {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
+  flex: 1 1 120px;
+  max-width: 140px;
+  min-width: 80px;
+  height: var(--patients-header-height);
+  line-height: calc(var(--patients-header-height) - 2px);
+  padding: 0 1.1rem 0 0.8rem;
+  border-radius: 6px;
+  border: 1.5px solid var(--primary-blue, #2563eb);
+  background: #fff;
+  color: #222;
+  font-size: 1.08rem;
+  box-sizing: border-box;
+  box-shadow: 0 2px 8px rgba(30,58,92,0.07);
+  transition: border 0.2s, box-shadow 0.2s;
   display: flex;
   align-items: center;
 }
 .patients-list {
+  background: #fff;
   flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: 100vh;
   margin: 0;
-  background: #fff;
   border-radius: 0;
   box-shadow: none;
   padding: 2rem 2vw 1rem 2vw;
@@ -413,6 +270,11 @@ export default {
   height: 100vh;
   box-sizing: border-box;
   overflow-x: hidden;
+}
+.patients-list .base-table {
+  min-height: 500px;
+  height: 60vh;
+  /* Adjust as needed for your layout */
 }
 .patients-header {
   display: flex;
@@ -500,9 +362,13 @@ export default {
   display: flex;
   gap: 0.5rem;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap; /* Prevent stacking */
+  width: auto;
 }
 .patients-filters select {
+  flex: 1 1 120px;
+  max-width: 140px;
+  min-width: 80px;
   height: var(--patients-header-height);
   line-height: calc(var(--patients-header-height) - 2px);
   padding: 0 1.1rem 0 0.8rem;
@@ -518,12 +384,11 @@ export default {
   align-items: center;
 }
 .patients-header .patients-search, .patients-header button, .patients-filters select {
-  min-width: 120px;
+  min-width: 90px;
   max-height: var(--patients-header-height);
   margin-bottom: 0;
   vertical-align: middle;
 }
-
 .pagination-controls {
   display: flex;
   justify-content: center;
@@ -571,6 +436,18 @@ export default {
     gap: 0.5rem;
   }
   .patients-filters {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .patients-header .patients-search, .patients-header button, .patients-filters select {
+    width: 100%;
+    min-width: 0;
+    margin-right: 0;
+  }
+}
+@media (max-width: 700px) {
+  .patients-filters {
+    flex-wrap: wrap;
     width: 100%;
     justify-content: flex-start;
   }

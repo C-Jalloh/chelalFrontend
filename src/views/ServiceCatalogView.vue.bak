@@ -1,0 +1,86 @@
+<template>
+  <div>
+    <h2>Service Catalog</h2>
+    <button @click="openCreateModal">Add Service</button>
+    <ServiceCatalogTable :services="services" @edit="openEditModal" @delete="confirmDelete" />
+    <div v-if="loading" class="loading-indicator">Loading...</div>
+    <div v-if="!loading && services.length === 0" class="empty-message">No services found.</div>
+    <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+    <ServiceCatalogModal
+      v-if="showModal"
+      :existing-service="editingService"
+      @close="closeModal"
+      @serviceCreated="handleServiceCreated"
+      @serviceUpdated="handleServiceUpdated"
+    />
+  </div>
+</template>
+<script setup lang="ts">
+import { ref, onMounted } from 'vue';
+import { fetchServiceCatalog, deleteServiceCatalog } from '../services/serviceCatalogService';
+import ServiceCatalogTable from '../components/ServiceCatalogTable.vue';
+import ServiceCatalogModal from '../components/ServiceCatalogModal.vue';
+
+interface ServiceCatalogItem {
+  id?: string | number;
+  name: string;
+  description?: string;
+  price: number;
+  is_active: boolean;
+}
+
+const services = ref<ServiceCatalogItem[]>([]);
+const showModal = ref(false);
+const editingService = ref<ServiceCatalogItem | undefined>(undefined);
+const loading = ref(false);
+const errorMessage = ref('');
+const token = localStorage.getItem('token') || '';
+
+const loadServices = async () => {
+  loading.value = true;
+  errorMessage.value = '';
+  try {
+    const res = await fetchServiceCatalog(token);
+    services.value = res.data;
+  } catch (err: any) {
+    errorMessage.value = err.message || 'Failed to load services.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const openCreateModal = () => {
+  editingService.value = undefined;
+  showModal.value = true;
+};
+const openEditModal = (service: ServiceCatalogItem) => {
+  editingService.value = { ...service };
+  showModal.value = true;
+};
+const closeModal = () => {
+  showModal.value = false;
+  editingService.value = undefined;
+};
+const handleServiceCreated = () => { loadServices(); };
+const handleServiceUpdated = () => { loadServices(); };
+const confirmDelete = async (service: ServiceCatalogItem) => {
+  if (confirm('Delete this service?')) {
+    loading.value = true;
+    errorMessage.value = '';
+    try {
+      await deleteServiceCatalog(service.id!, token);
+      await loadServices();
+    } catch (err: any) {
+      errorMessage.value = err.message || 'Failed to delete service.';
+    } finally {
+      loading.value = false;
+    }
+  }
+};
+onMounted(loadServices);
+</script>
+<style scoped>
+.loading-indicator { margin: 1rem 0; color: #007bff; font-weight: 500; }
+.empty-message { margin: 1rem 0; color: #888; font-style: italic; }
+.error-message { color: red; margin: 1rem 0; font-size: 1rem; }
+</style>

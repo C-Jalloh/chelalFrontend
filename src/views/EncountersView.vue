@@ -19,36 +19,16 @@
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-      <div class="encounters-table-wrapper responsive-table-wrapper">
-        <table class="encounters-table">
-          <thead>
-            <tr>
-              <th><UserIcon class="icon-th" /> Patient</th>
-              <th><UserGroupIcon class="icon-th" /> Doctor</th>
-              <th><CalendarDaysIcon class="icon-th" /> Date</th>
-              <th>Diagnosis</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td colspan="5">Loading encounters...</td></tr>
-            <tr v-else-if="paginatedEncounters.length === 0"><td colspan="5">No encounters match your filters or none exist.</td></tr>
-            <tr v-for="encounter in paginatedEncounters" :key="encounter.id" @click="handleRowClick(encounter, $event)">
-              <td>{{ encounter.patient_name || encounter.patient_id }}</td>
-              <td>{{ encounter.doctor_name || encounter.doctor_id }}</td>
-              <td>{{ encounter.appointment_date || encounter.encounter_date }}</td>
-              <td>{{ encounter.diagnosis || 'N/A' }}</td>
-              <td>
-                <div class="table-action-group">
-                  <button @click.stop="viewEncounter(encounter)" class="action-btn view-btn"><EyeIcon class="icon-btn" /> View</button>
-                  <button @click.stop="editEncounter(encounter)" class="action-btn edit-btn"><PencilSquareIcon class="icon-btn" /> Edit</button>
-                  <button @click.stop="confirmDelete(encounter.id)" class="action-btn delete-btn"><TrashIcon class="icon-btn" /> Delete</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <BaseTable
+        :columns="encounterColumns"
+        :data="paginatedEncounters"
+        :idKey="'id'"
+        :pageSize="pageSize"
+        @edit="editEncounter"
+        @delete="confirmDelete"
+        @row-click="viewEncounter"
+      />
+
       <div class="pagination-controls">
         <button :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">&lt; Prev</button>
         <span>Page {{ currentPage }} of {{ totalPages }}</span>
@@ -58,7 +38,7 @@
       <AddEncounterForm 
         v-if="showAddEditModal" 
         :existing-encounter="encounterToEdit"
-        @close="closeAddEditModal" 
+        @close="closeAddEditModal"
         @encounter-added="refreshEncounters" 
         @encounter-updated="refreshEncounters" 
       />
@@ -76,13 +56,14 @@ import { defineComponent, ref, onMounted, computed } from 'vue';
 import { fetchEncounters, deleteEncounter, type Encounter } from '@/services/encounterService';
 import store from '@/store';
 import AddEncounterForm from '../components/AddEncounterForm.vue';
-import EncounterDetailModal from '../components/EncounterDetailModal.vue';
+import EncounterDetailModal from '../components/Modals/EncounterDetailModal.vue';
+import BaseTable from '../components/BaseTable.vue';
 import { CalendarDaysIcon, UserIcon, UserGroupIcon, PencilSquareIcon, EyeIcon, TrashIcon } from '@heroicons/vue/24/outline';
 import { useUniversalTableClick } from '../components/UniversalTableClick';
 
 export default defineComponent({
   name: 'EncountersView',
-  components: { AddEncounterForm, EncounterDetailModal, CalendarDaysIcon, UserIcon, UserGroupIcon, PencilSquareIcon, EyeIcon, TrashIcon },
+  components: { AddEncounterForm, EncounterDetailModal, CalendarDaysIcon, UserIcon, UserGroupIcon, PencilSquareIcon, EyeIcon, TrashIcon, BaseTable },
   setup() {
     const encounters = ref<Encounter[]>([]);
     const loading = ref(false);
@@ -131,6 +112,12 @@ export default defineComponent({
       }
       return tempEncounters;
     });
+    const encounterColumns = [
+      { key: 'patient_name', label: 'Patient', sortable: true, icon: UserIcon },
+      { key: 'doctor_name', label: 'Doctor', sortable: true, icon: UserGroupIcon },
+      { key: 'appointment_date', label: 'Date', sortable: true, icon: CalendarDaysIcon },
+      { key: 'diagnosis', label: 'Diagnosis', sortable: false, icon: null }
+    ];
     const refreshEncounters = () => { loadEncounters(); };
     const openAddEncounterModal = () => { encounterToEdit.value = null; showAddEditModal.value = true; };
     const closeAddEditModal = () => { showAddEditModal.value = false; encounterToEdit.value = null; };
@@ -199,7 +186,8 @@ export default defineComponent({
       currentPage,
       totalPages,
       goToPage,
-      handleRowClick,
+      pageSize,
+      encounterColumns
     };
   },
 });
