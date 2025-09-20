@@ -1,0 +1,6 @@
+[submodule "chelal-hms-vue"]
+	path = chelal-hms-vue
+	url = https://github.com/C-Jalloh/chelalFrontend.git
+[submodule "chelalBackend"]
+	path = chelalBackend
+	url = https://github.com/C-Jalloh/chelalBackend.git
