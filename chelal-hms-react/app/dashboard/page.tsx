@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Users,
   Calendar,
@@ -24,22 +25,26 @@ import {
   Stethoscope,
   Heart,
   Thermometer,
+  DollarSign,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useRouter } from "next/navigation"
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-} from "recharts"
+  useDashboardData,
+  useDashboardStats,
+  usePatientCount,
+  useAppointmentsToday,
+  useAppointmentsByDoctor,
+  useTopMedications
+} from "@/hooks/useDashboard"
+import {
+  CustomLineChart,
+  CustomBarChart,
+  CustomPieChart,
+  CustomAreaChart,
+  ChartLoading,
+  ChartError
+} from "@/components/dashboard/charts"
 import { AppLayout } from "@/components/layout/app-layout"
 
 // Mock data for demonstration
@@ -87,6 +92,116 @@ export default function DashboardPage() {
   const { theme } = useTheme()
   const router = useRouter()
 
+  // Real-time update state
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [refreshInterval, setRefreshInterval] = useState(30000) // 30 seconds
+
+  // API hooks for real data
+  const { data: dashboardData, loading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = useDashboardData()
+  const { stats, loading: statsLoading, error: statsError } = useDashboardStats()
+  const { data: patientCount, loading: patientLoading } = usePatientCount()
+  const { data: appointmentsToday, loading: appointmentsTodayLoading } = useAppointmentsToday()
+  const { data: appointmentsByDoctor, loading: appointmentsLoading } = useAppointmentsByDoctor()
+  const { data: topMedications, loading: medicationsLoading } = useTopMedications()
+
+  // Combined loading state
+  const isLoading = dashboardLoading || statsLoading || patientLoading || appointmentsTodayLoading || appointmentsLoading || medicationsLoading
+
+  // Transform data for charts
+  const appointmentsByDoctorData = appointmentsByDoctor?.appointments_by_doctor?.map(item => ({
+    name: item.doctor_name,
+    value: item.appointment_count
+  })) || []
+
+  const topMedicationsData = topMedications?.top_medications?.map(item => ({
+    name: item.medication_name,
+    value: item.count
+  })) || []
+
+  // Manual refresh function
+  const handleRefresh = useCallback(async () => {
+    await refetchDashboard()
+    setLastUpdated(new Date())
+  }, [refetchDashboard])
+
+  // Auto-refresh effect
+  useEffect(() => {
+    if (!autoRefresh) return
+
+    const interval = setInterval(() => {
+      handleRefresh()
+    }, refreshInterval)
+
+    return () => clearInterval(interval)
+  }, [autoRefresh, refreshInterval, handleRefresh])
+
+  // Transform data for charts
+  const patientTrendData = dashboardData?.patient_registrations_trend?.map(item => ({
+    date: item.date,
+    value: item.count || 0
+  })) || []
+
+  const revenueTrendData = dashboardData?.revenue_trend?.map(item => ({
+    date: item.date,
+    value: item.total || 0
+  })) || []
+
+  const revenueBreakdownData = dashboardData?.revenue_breakdown?.map(item => ({
+    name: item.department || 'General',
+    value: item.total
+  })) || []
+
+  // Loading state
+  if (dashboardLoading || statsLoading) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+              <p className="text-muted-foreground">Loading dashboard data...</p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {[...Array(4)].map((_, i) => (
+              <Card key={i}>
+                <CardHeader className="pb-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-8 bg-gray-200 rounded animate-pulse mb-2"></div>
+                  <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  // Error state
+  if (dashboardError || statsError) {
+    return (
+      <AppLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+              <p className="text-muted-foreground">Error loading dashboard data</p>
+            </div>
+          </div>
+          <Card>
+            <CardContent className="p-6">
+              <ChartError error={dashboardError || statsError || 'Failed to load dashboard'} />
+            </CardContent>
+          </Card>
+        </div>
+      </AppLayout>
+    )
+  }
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -118,7 +233,9 @@ export default function DashboardPage() {
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">1,234</div>
+              <div className="text-2xl font-bold">
+                {isLoading ? <Skeleton className="h-8 w-16" /> : patientCount?.patient_count || 0}
+              </div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-600">+12%</span> from last month
               </p>
@@ -131,7 +248,9 @@ export default function DashboardPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24</div>
+              <div className="text-2xl font-bold">
+                {isLoading ? <Skeleton className="h-8 w-16" /> : appointmentsToday?.appointments?.length || 0}
+              </div>
               <p className="text-xs text-muted-foreground">
                 <span className="text-green-600">+8%</span> from yesterday
               </p>
@@ -169,88 +288,48 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
           <Card className="col-span-4">
             <CardHeader>
-              <CardTitle>Patient Growth</CardTitle>
-              <CardDescription>Monthly patient registration trends</CardDescription>
+              <CardTitle>Appointments by Doctor</CardTitle>
+              <CardDescription>Distribution of appointments among doctors</CardDescription>
             </CardHeader>
-            <CardContent className="pl-2">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={patientStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Bar dataKey="patients" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
+            <CardContent>
+              {isLoading ? (
+                <ChartLoading />
+              ) : appointmentsByDoctorData.length > 0 ? (
+                <CustomBarChart
+                  data={appointmentsByDoctorData}
+                  dataKey="value"
+                  nameKey="name"
+                  color="#3b82f6"
+                  height={300}
+                />
+              ) : (
+                <ChartError error="No appointment data available" />
+              )}
             </CardContent>
           </Card>
 
           <Card className="col-span-3">
             <CardHeader>
-              <CardTitle>Appointment Status</CardTitle>
-              <CardDescription>Today's appointment breakdown</CardDescription>
+              <CardTitle>Top Medications</CardTitle>
+              <CardDescription>Most prescribed medications</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={appointmentStats}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, value, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {appointmentStats.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
+              {isLoading ? (
+                <ChartLoading />
+              ) : topMedicationsData.length > 0 ? (
+                <CustomPieChart
+                  data={topMedicationsData}
+                  dataKey="value"
+                  nameKey="name"
+                  height={300}
+                />
+              ) : (
+                <ChartError error="No medication data available" />
+              )}
             </CardContent>
           </Card>
         </div>
-
-        {/* Recent Appointments */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Appointments</CardTitle>
-            <CardDescription>Latest appointment activity</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentAppointments.map((appointment) => (
-                <div key={appointment.id} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <Avatar>
-                      <AvatarFallback>
-                        {appointment.patient.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-medium">{appointment.patient}</p>
-                      <p className="text-sm text-muted-foreground">{appointment.type}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge
-                      variant={
-                        appointment.status === 'completed' ? 'default' :
-                        appointment.status === 'in-progress' ? 'secondary' :
-                        'outline'
-                      }
-                    >
-                      {appointment.status}
-                    </Badge>
-                    <span className="text-sm text-muted-foreground">{appointment.time}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </AppLayout>
-  )
+  );
 }

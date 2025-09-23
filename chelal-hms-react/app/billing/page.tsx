@@ -15,6 +15,8 @@ import { PaymentForm } from '@/components/billing/PaymentForm'
 import { BillingStats } from '@/components/billing/BillingStats'
 import { AppLayout } from '@/components/layout/app-layout'
 import { useAuth } from '@/lib/auth-context'
+import { ConditionalRender } from '@/components/auth/ConditionalRender'
+import { ROLES } from '@/lib/permissions'
 
 interface Bill {
   id: string
@@ -22,6 +24,7 @@ interface Bill {
     id: string
     first_name: string
     last_name: string
+    email: string
   }
   total_amount: number
   paid_amount: number
@@ -168,23 +171,36 @@ export default function BillingPage() {
 
   return (
     <AppLayout>
-      <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Billing Management</h1>
-          <p className="text-muted-foreground">Manage bills, payments, and financial records</p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowPaymentForm(true)} variant="outline">
-            <CreditCard className="mr-2 h-4 w-4" />
-            Record Payment
-          </Button>
-          <Button onClick={() => setShowBillForm(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Create Bill
-          </Button>
-        </div>
-      </div>
+      <ConditionalRender
+        roles={[ROLES.ADMIN, ROLES.RECEPTIONIST]}
+        fallback={
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center">
+              <CreditCard className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold text-gray-600 mb-2">Access Denied</h2>
+              <p className="text-gray-500">You don't have permission to access billing management.</p>
+              <p className="text-sm text-gray-400 mt-2">This area is restricted to administrators and receptionists.</p>
+            </div>
+          </div>
+        }
+      >
+        <div className="container mx-auto p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Billing Management</h1>
+              <p className="text-muted-foreground">Manage bills, payments, and financial records</p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowPaymentForm(true)} variant="outline">
+                <CreditCard className="mr-2 h-4 w-4" />
+                Record Payment
+              </Button>
+              <Button onClick={() => setShowBillForm(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Bill
+              </Button>
+            </div>
+          </div>
 
       {/* Billing Stats */}
       {billingStats && <BillingStats stats={billingStats} />}
@@ -338,6 +354,7 @@ export default function BillingPage() {
         />
       )}
     </div>
+      </ConditionalRender>
     </AppLayout>
   )
 }

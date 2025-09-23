@@ -23,6 +23,7 @@ import {
   Pill,
   CreditCard,
   FileText,
+  BarChart3,
   Settings,
   Bell,
   Menu,
@@ -34,42 +35,66 @@ import {
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useAuth } from "@/lib/auth-context"
+import { ROLES, hasAnyRole } from "@/lib/permissions"
+import type { Role } from "@/lib/permissions"
 
-const navigation = [
+interface NavigationItem {
+  name: string
+  href: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+  allowedRoles: Role[]
+}
+
+const navigation: NavigationItem[] = [
   {
     name: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
+    description: "Overview and statistics",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.RECEPTIONIST]
   },
   {
     name: "Patients",
     href: "/patients",
     icon: Users,
+    description: "Patient management",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.RECEPTIONIST]
   },
   {
     name: "Appointments",
     href: "/appointments",
     icon: Calendar,
+    description: "Schedule and bookings",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.RECEPTIONIST]
   },
   {
     name: "Medications",
     href: "/medications",
     icon: Pill,
+    description: "Pharmacy and prescriptions",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.PHARMACIST]
   },
   {
     name: "Billing",
     href: "/billing",
     icon: CreditCard,
+    description: "Financial transactions",
+    allowedRoles: [ROLES.ADMIN, ROLES.RECEPTIONIST]
   },
   {
-    name: "Reports",
+    name: "Reports & Analytics",
     href: "/reports",
-    icon: FileText,
+    icon: BarChart3,
+    description: "Insights and data analysis",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.NURSE]
   },
   {
     name: "Settings",
     href: "/settings",
     icon: Settings,
+    description: "System configuration",
+    allowedRoles: [ROLES.ADMIN, ROLES.DOCTOR, ROLES.RECEPTIONIST, ROLES.PATIENT, ROLES.DEFAULTUSER]
   },
 ]
 
@@ -79,6 +104,12 @@ interface AppLayoutProps {
 
 function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname()
+  const { user } = useAuth()
+
+  // Filter navigation items based on user roles
+  const filteredNavigation = navigation.filter(item =>
+    hasAnyRole(user, item.allowedRoles)
+  )
 
   return (
     <div className={cn("pb-12", className)}>
@@ -89,16 +120,17 @@ function Sidebar({ className }: { className?: string }) {
             <h2 className="text-lg font-semibold">Chelal HMS</h2>
           </div>
           <div className="space-y-1">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href
+            {filteredNavigation.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
               return (
                 <Link key={item.name} href={item.href}>
                   <Button
                     variant={isActive ? "secondary" : "ghost"}
                     className={cn(
                       "w-full justify-start",
-                      isActive && "bg-secondary"
+                      isActive && "bg-secondary text-secondary-foreground"
                     )}
+                    title={item.description}
                   >
                     <item.icon className="mr-2 h-4 w-4" />
                     {item.name}
@@ -176,6 +208,7 @@ function Header() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-9 w-9 rounded-full ml-1">
                   <Avatar className="h-9 w-9">
+                    <AvatarImage src={user?.avatar} alt={`${user?.first_name} ${user?.last_name}`} />
                     <AvatarFallback className="text-xs">
                       {user?.first_name?.[0]}{user?.last_name?.[0]}
                     </AvatarFallback>
